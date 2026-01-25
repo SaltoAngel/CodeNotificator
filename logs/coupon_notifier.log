@@ -1,0 +1,272 @@
+2026-01-25 16:02:39 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 16:02:43 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-01-25 16:02:43 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 16:02:43 - CouponNotifier - INFO - Escaneo automático configurado cada 30 minutos
+2026-01-25 16:02:45 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:02:45 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:02:45 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:02:46 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:02:46 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:02:46 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:02:47 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:02:47 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:02:47 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:02:48 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:02:48 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:02:48 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:02:51 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:02:51 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:02:51 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:02:51 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:02:51 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:02:51 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:02:57 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:02:57 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:02:57 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:02:58 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:02:58 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:02:58 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:02:58 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:02:58 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:02:58 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:02:58 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:02:58 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:02:58 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:03:01 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:03:01 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:03:01 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:03:01 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:03:01 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:03:01 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:03:02 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:03:02 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:03:02 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:03:02 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:03:02 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:03:02 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:03:24 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-01-25 16:03:24 - CouponNotifier - INFO - Aplicación cerrada
+2026-01-25 16:03:40 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 16:03:44 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-01-25 16:03:44 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 16:03:44 - CouponNotifier - INFO - Escaneo automático configurado cada 30 minutos
+2026-01-25 16:03:53 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:03:53 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:03:53 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:03:54 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:03:54 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:03:54 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:03:54 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:03:54 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:03:54 - CouponNotifier - INFO - Usando query de búsqueda: (subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment
+2026-01-25 16:03:55 - CouponNotifier - INFO - Encontrados 0 correos
+2026-01-25 16:03:55 - CouponNotifier - INFO - Procesando 0 correos...
+2026-01-25 16:03:55 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:05:25 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-01-25 16:05:25 - CouponNotifier - INFO - Aplicación cerrada
+2026-01-25 16:05:34 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 16:05:39 - CouponNotifier - WARNING - Credenciales no configuradas
+2026-01-25 16:05:39 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 16:05:39 - CouponNotifier - INFO - Escaneo automático configurado cada 30 minutos
+2026-01-25 16:05:58 - CouponNotifier - INFO - Tokens obtenidos exitosamente
+2026-01-25 16:05:58 - CouponNotifier - INFO - Configuración actualizada: client_id, client_secret, refresh_token
+2026-01-25 16:07:03 - CouponNotifier - WARNING - No se pudo obtener perfil: The read operation timed out
+2026-01-25 16:07:21 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:07:21 - CouponNotifier - INFO - Escaneo manual iniciado
+2026-01-25 16:07:21 - CouponNotifier - INFO - Usando query de búsqueda: 
+2026-01-25 16:07:22 - CouponNotifier - INFO - Encontrados 15 correos
+2026-01-25 16:07:22 - CouponNotifier - INFO - Procesando 15 correos...
+2026-01-25 16:07:22 - CouponNotifier - INFO - Procesando email: Flash Sunday Sale — use code 15PERCENTOFF to enjoy...
+2026-01-25 16:07:22 - CouponNotifier - INFO - Cupón encontrado en texto: 15PERCENTOFF
+2026-01-25 16:07:22 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:22 - CouponNotifier - INFO - Procesando email: NEW deals at Big Bear Wine & Liquor 1/25 - 1/31...
+2026-01-25 16:07:22 - CouponNotifier - INFO - Procesando email: Radiate Confidence ✨👟...
+2026-01-25 16:07:22 - CouponNotifier - INFO - Cupón encontrado en texto: 80E1B68175A6FC19A12760F5F2B90A16
+2026-01-25 16:07:22 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:22 - CouponNotifier - INFO - Procesando email: Re: sa...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Procesando email: sa...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Procesando email: Spring Bags Have Entered the Chat 🌸...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Cupón encontrado en texto: 3DA310223E0AC974BD900979D0CDEACCB7
+2026-01-25 16:07:23 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:23 - CouponNotifier - INFO - Procesando email: The feeling you look forward to at night...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Cupón encontrado en texto: D9C2459035867A237D0406FA96D5BC02
+2026-01-25 16:07:23 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:23 - CouponNotifier - INFO - Procesando email: ALL FOR LOVE...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Procesando email: NEW DROP: Modern Power Dressing...
+2026-01-25 16:07:23 - CouponNotifier - INFO - Cupón encontrado en texto: 959B1A2306AE6DFB3FD48ECCC8C1AEE3
+2026-01-25 16:07:23 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:24 - CouponNotifier - INFO - Procesando email: You've Been Selected to Receive Milk Street Magazi...
+2026-01-25 16:07:24 - CouponNotifier - INFO - Cupón encontrado en texto: 2DE8728239157AC2369AB44B920724A3
+2026-01-25 16:07:24 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:24 - CouponNotifier - INFO - Procesando email: "Organic" doesn't need to come with a lecture....
+2026-01-25 16:07:24 - CouponNotifier - INFO - Cupón encontrado en texto: UNSUBSCRIBE 1136 WALNUT
+2026-01-25 16:07:24 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:24 - CouponNotifier - INFO - Procesando email: The last soup menu of the season is here 🍲...
+2026-01-25 16:07:24 - CouponNotifier - INFO - Cupón encontrado en texto: 79C9649F5AC44F87A88430CA79EE9D1B
+2026-01-25 16:07:24 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:24 - CouponNotifier - INFO - Procesando email: get this for 50% OFF...code inside...
+2026-01-25 16:07:24 - CouponNotifier - INFO - Cupón encontrado en texto: 2F152D02EB1F3DCCC612C5F5058C15DD
+2026-01-25 16:07:24 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:24 - CouponNotifier - INFO - Procesando email: Flash Sale: 50+ All New Designs!...
+2026-01-25 16:07:24 - CouponNotifier - INFO - Cupón encontrado en texto: 3DE68E102ED6BA256FF453551A55B95
+2026-01-25 16:07:24 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:25 - CouponNotifier - INFO - Procesando email: FREE foundation today only (I'm not joking)...
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón encontrado en texto: 2088FD1E5554DD188C33F65D801CADA7
+2026-01-25 16:07:25 - CouponNotifier - INFO -   → Encontrados 1 cupones en este correo
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 15PERCENTOFF - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 15PERCENTOFF
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 80E1B68175A6FC19A12760F5F2B90A16 - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 80E1B68175A6FC19A12760F5F2B90A16
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 3DA310223E0AC974BD900979D0CDEACCB7 - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 3DA310223E0AC974BD900979D0CDEACCB7
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: D9C2459035867A237D0406FA96D5BC02 - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: D9C2459035867A237D0406FA96D5BC02
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 959B1A2306AE6DFB3FD48ECCC8C1AEE3 - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 959B1A2306AE6DFB3FD48ECCC8C1AEE3
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 2DE8728239157AC2369AB44B920724A3 - Mercado Libre
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 2DE8728239157AC2369AB44B920724A3
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: UNSUBSCRIBE 1136 WALNUT - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: UNSUBSCRIBE 1136 WALNUT
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 79C9649F5AC44F87A88430CA79EE9D1B - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 79C9649F5AC44F87A88430CA79EE9D1B
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 2F152D02EB1F3DCCC612C5F5058C15DD - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 2F152D02EB1F3DCCC612C5F5058C15DD
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 3DE68E102ED6BA256FF453551A55B95 - Mercado Libre
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 3DE68E102ED6BA256FF453551A55B95
+2026-01-25 16:07:25 - CouponNotifier - INFO - Cupón agregado: 2088FD1E5554DD188C33F65D801CADA7 - Desconocida
+2026-01-25 16:07:25 - CouponNotifier - INFO -   ✅ Guardado nuevo cupón: 2088FD1E5554DD188C33F65D801CADA7
+2026-01-25 16:07:25 - CouponNotifier - INFO - Escaneo completado. Encontrados 11 cupones nuevos
+2026-01-25 16:07:25 - CouponNotifier - INFO - Escaneo completado: Encontrados 11 cupones nuevos
+2026-01-25 16:26:09 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-01-25 16:26:09 - CouponNotifier - INFO - Aplicación cerrada
+2026-01-25 16:38:24 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 16:38:25 - CouponNotifier - CRITICAL - Error fatal: Traceback (most recent call last):
+  File "c:\xampp\htdocs\CodeNotificator\CodeNotificator.py", line 1383, in <module>
+    app = CouponNotifierApp(root)
+  File "c:\xampp\htdocs\CodeNotificator\CodeNotificator.py", line 947, in __init__
+    self.load_notifications()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "c:\xampp\htdocs\CodeNotificator\CodeNotificator.py", line 1142, in load_notifications
+    notifications = self.db.get_notifications(limit=50)
+  File "c:\xampp\htdocs\CodeNotificator\CodeNotificator.py", line 249, in get_notifications
+    cursor.execute(query, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: usuario_valido
+
+2026-01-25 16:38:43 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 16:38:50 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 16:39:07 - CouponNotifier - INFO - Tokens obtenidos exitosamente
+2026-01-25 16:39:07 - CouponNotifier - INFO - Configuración actualizada: client_id, client_secret, refresh_token
+2026-01-25 16:39:09 - CouponNotifier - INFO - Configuración actualizada: intervalo_minutos
+2026-01-25 16:39:14 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:39:18 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-01-25 16:39:19 - CouponNotifier - INFO - Encontrados 15 correos
+2026-01-25 16:39:22 - CouponNotifier - INFO - Procesando: Flash Sunday Sale — use code 15PERCENTOFF to enjoy...
+2026-01-25 16:39:22 - CouponNotifier - INFO - Procesando: NEW deals at Big Bear Wine & Liquor 1/25 - 1/31...
+2026-01-25 16:39:22 - CouponNotifier - INFO - Procesando: Radiate Confidence ✨👟...
+2026-01-25 16:39:22 - CouponNotifier - INFO - Cupón encontrado: CS703 (confianza: 0.56)
+2026-01-25 16:39:22 - CouponNotifier - INFO - Cupón agregado: CS703 - Desconocida (confianza: 0.56)
+2026-01-25 16:39:22 - CouponNotifier - INFO - Procesando: Re: sa...
+2026-01-25 16:39:23 - CouponNotifier - INFO - Procesando: sa...
+2026-01-25 16:39:23 - CouponNotifier - INFO - Procesando: Spring Bags Have Entered the Chat 🌸...
+2026-01-25 16:39:23 - CouponNotifier - INFO - Cupón encontrado: 1KFNZP0ME4J64QHN8V71W001X (confianza: 0.56)
+2026-01-25 16:39:23 - CouponNotifier - INFO - Cupón agregado: 1KFNZP0ME4J64QHN8V71W001X - Desconocida (confianza: 0.56)
+2026-01-25 16:39:23 - CouponNotifier - INFO - Procesando: The feeling you look forward to at night...
+2026-01-25 16:39:23 - CouponNotifier - INFO - Cupón encontrado: UCAWOQ2SYSZ08BGNBWWKA8FG (confianza: 0.56)
+2026-01-25 16:39:23 - CouponNotifier - INFO - Cupón agregado: UCAWOQ2SYSZ08BGNBWWKA8FG - Desconocida (confianza: 0.56)
+2026-01-25 16:39:23 - CouponNotifier - INFO - Procesando: ALL FOR LOVE...
+2026-01-25 16:39:24 - CouponNotifier - INFO - Procesando: NEW DROP: Modern Power Dressing...
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón encontrado: 2306AE (confianza: 0.56)
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón agregado: 2306AE - Desconocida (confianza: 0.56)
+2026-01-25 16:39:24 - CouponNotifier - INFO - Procesando: You've Been Selected to Receive Milk Street Magazi...
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón encontrado: DE8728239157AC (confianza: 0.56)
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón agregado: DE8728239157AC - Mercado Libre (confianza: 0.56)
+2026-01-25 16:39:24 - CouponNotifier - INFO - Procesando: "Organic" doesn't need to come with a lecture....
+2026-01-25 16:39:24 - CouponNotifier - INFO - Procesando: The last soup menu of the season is here 🍲...
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón encontrado: RTVAQC289D (confianza: 0.56)
+2026-01-25 16:39:24 - CouponNotifier - INFO - Cupón agregado: RTVAQC289D - Desconocida (confianza: 0.56)
+2026-01-25 16:39:25 - CouponNotifier - INFO - Procesando: get this for 50% OFF...code inside...
+2026-01-25 16:39:25 - CouponNotifier - INFO - Cupón encontrado: DCCC612C (confianza: 0.56)
+2026-01-25 16:39:25 - CouponNotifier - INFO - Cupón agregado: DCCC612C - Desconocida (confianza: 0.56)
+2026-01-25 16:39:25 - CouponNotifier - INFO - Procesando: Flash Sale: 50+ All New Designs!...
+2026-01-25 16:39:25 - CouponNotifier - INFO - Cupón encontrado: 1343KJPANRW (confianza: 0.56)
+2026-01-25 16:39:25 - CouponNotifier - INFO - Cupón agregado: 1343KJPANRW - Mercado Libre (confianza: 0.56)
+2026-01-25 16:39:26 - CouponNotifier - INFO - Procesando: FREE foundation today only (I'm not joking)...
+2026-01-25 16:39:26 - CouponNotifier - INFO - Cupón encontrado: QYOWACDGV5-6WOX5AOZXZW (confianza: 0.56)
+2026-01-25 16:39:26 - CouponNotifier - INFO - Cupón agregado: QYOWACDGV5-6WOX5AOZXZW - Desconocida (confianza: 0.56)
+2026-01-25 16:39:26 - CouponNotifier - INFO - Escaneo completado. Encontrados 9 cupones nuevos
+2026-01-25 16:39:26 - CouponNotifier - INFO - Notificación: 🎉 Nuevos Cupones
+2026-01-25 16:47:18 - CouponNotifier - INFO - Aprendizaje: 1343KJPANRW -> MIXED_11 (inválido)
+2026-01-25 16:47:18 - CouponNotifier - INFO - Cupón 8 marcado como inválido
+2026-01-25 16:47:18 - CouponNotifier - INFO - Notificación: ❌ Feedback Registrado
+2026-01-25 16:47:26 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 16:47:45 - CouponNotifier - ERROR - Error buscando correos: [WinError 10054] Se ha forzado la interrupción de una conexión existente por el host remoto
+2026-01-25 16:47:45 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 16:51:28 - CouponNotifier - INFO - Configuración actualizada: intervalo_minutos
+2026-01-25 16:58:52 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-01-25 17:03:52 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 17:03:53 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 17:04:03 - CouponNotifier - ERROR - Error en escaneo: Traceback (most recent call last):
+  File "c:\xampp\htdocs\CodeNotificator\CodeNotificator.py", line 1279, in perform_scan
+    coupons, message = self.processor.scan_emails()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'GmailOCRProcessor' object has no attribute 'scan_emails'. Did you mean: 'search_emails'?
+
+2026-01-25 17:04:15 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-01-25 17:12:49 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-01-25 17:12:50 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-01-25 17:14:00 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 17:14:04 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-01-25 17:14:04 - CouponNotifier - INFO - Encontrados 15 correos
+2026-01-25 17:14:04 - CouponNotifier - INFO - Procesando: Flash Sunday Sale — use code 15PERCENTOFF to enjoy... (Remitente: WezTeck <store+55226925252@g.shopifyemail.com>)
+2026-01-25 17:14:05 - CouponNotifier - INFO - Procesando: NEW deals at Big Bear Wine & Liquor 1/25 - 1/31... (Remitente: "Big Bear Wine & Liquor" <do-not-reply@cityhive.net>)
+2026-01-25 17:14:05 - CouponNotifier - INFO - Procesando: Radiate Confidence ✨👟... (Remitente: IDA <hello@idasports.com>)
+2026-01-25 17:14:05 - CouponNotifier - INFO - Cupón encontrado: CS703 - Tienda: IDA (confianza: 0.56)
+2026-01-25 17:14:06 - CouponNotifier - INFO - Procesando: Re: sa... (Remitente: Moises_01 <jaiverolivera@gmail.com>)
+2026-01-25 17:14:06 - CouponNotifier - INFO - Procesando: sa... (Remitente: Moises_01 <jaiverolivera@gmail.com>)
+2026-01-25 17:14:06 - CouponNotifier - INFO - Procesando: Spring Bags Have Entered the Chat 🌸... (Remitente: K Marie Boutique <karen@shopkmarieboutique.com>)
+2026-01-25 17:14:06 - CouponNotifier - INFO - Cupón encontrado: 1KFNZP0ME4J64QHN8V71W001X - Tienda: K Marie Boutique (confianza: 0.56)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Procesando: The feeling you look forward to at night... (Remitente: Takasa <hello@takasa.co>)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Cupón encontrado: UCAWOQ2SYSZ08BGNBWWKA8FG - Tienda: Takasa (confianza: 0.56)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Procesando: ALL FOR LOVE... (Remitente: The M Jewelers <contact@themjewelersny.com>)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Procesando: NEW DROP: Modern Power Dressing... (Remitente: Naked Wardrobe <info@nakedwardrobe.com>)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Cupón encontrado: 2306AE - Tienda: Naked Wardrobe (confianza: 0.56)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Procesando: You've Been Selected to Receive Milk Street Magazi... (Remitente: Christopher Kimball <chriskimball@177milkstreet.com>)
+2026-01-25 17:14:08 - CouponNotifier - INFO - Cupón encontrado: DE8728239157AC - Tienda: Christopher Kimball (confianza: 0.56)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Procesando: "Organic" doesn't need to come with a lecture.... (Remitente: Fresh Roasted Coffee <info@freshroastedcoffee.com>)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Procesando: The last soup menu of the season is here 🍲... (Remitente: Beehive Meals <hello@beehivemeals.com>)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Cupón encontrado: RTVAQC289D - Tienda: Beehive Meals (confianza: 0.56)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Procesando: get this for 50% OFF...code inside... (Remitente: Hoop Culture <info@hoopculture.com>)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Cupón encontrado: DCCC612C - Tienda: Hoop Culture (confianza: 0.56)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Procesando: Flash Sale: 50+ All New Designs!... (Remitente: "Rhythm & Beat" <support@rhythmandbeat.com>)
+2026-01-25 17:14:09 - CouponNotifier - INFO - Cupón encontrado: 1343KJPANRW - Tienda: Rhythm & Beat (confianza: 0.56)
+2026-01-25 17:14:10 - CouponNotifier - INFO - Procesando: FREE foundation today only (I'm not joking)... (Remitente: Luxe Cosmetics US <info@luxe-cosmetics.com>)
+2026-01-25 17:14:10 - CouponNotifier - INFO - Cupón encontrado: QYOWACDGV5-6WOX5AOZXZW - Tienda: Luxe Cosmetics US (confianza: 0.56)
+2026-01-25 17:14:10 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 17:16:48 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-01-25 17:16:48 - CouponNotifier - INFO - Encontrados 15 correos
+2026-01-25 17:16:48 - CouponNotifier - INFO - Procesando: sa... (Remitente: Moises_01 <jaiverolivera@gmail.com>)
+2026-01-25 17:16:48 - CouponNotifier - INFO - Procesando: Flash Sunday Sale — use code 15PERCENTOFF to enjoy... (Remitente: WezTeck <store+55226925252@g.shopifyemail.com>)
+2026-01-25 17:16:48 - CouponNotifier - INFO - Procesando: NEW deals at Big Bear Wine & Liquor 1/25 - 1/31... (Remitente: "Big Bear Wine & Liquor" <do-not-reply@cityhive.net>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Procesando: Radiate Confidence ✨👟... (Remitente: IDA <hello@idasports.com>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Cupón encontrado: CS703 - Tienda: IDA (confianza: 0.56)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Procesando: Re: sa... (Remitente: Moises_01 <jaiverolivera@gmail.com>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Procesando: sa... (Remitente: Moises_01 <jaiverolivera@gmail.com>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Procesando: Spring Bags Have Entered the Chat 🌸... (Remitente: K Marie Boutique <karen@shopkmarieboutique.com>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Cupón encontrado: 1KFNZP0ME4J64QHN8V71W001X - Tienda: K Marie Boutique (confianza: 0.56)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Procesando: The feeling you look forward to at night... (Remitente: Takasa <hello@takasa.co>)
+2026-01-25 17:16:49 - CouponNotifier - INFO - Cupón encontrado: UCAWOQ2SYSZ08BGNBWWKA8FG - Tienda: Takasa (confianza: 0.56)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Procesando: ALL FOR LOVE... (Remitente: The M Jewelers <contact@themjewelersny.com>)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Procesando: NEW DROP: Modern Power Dressing... (Remitente: Naked Wardrobe <info@nakedwardrobe.com>)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Cupón encontrado: 2306AE - Tienda: Naked Wardrobe (confianza: 0.56)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Procesando: You've Been Selected to Receive Milk Street Magazi... (Remitente: Christopher Kimball <chriskimball@177milkstreet.com>)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Cupón encontrado: DE8728239157AC - Tienda: Christopher Kimball (confianza: 0.56)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Procesando: "Organic" doesn't need to come with a lecture.... (Remitente: Fresh Roasted Coffee <info@freshroastedcoffee.com>)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Procesando: The last soup menu of the season is here 🍲... (Remitente: Beehive Meals <hello@beehivemeals.com>)
+2026-01-25 17:16:50 - CouponNotifier - INFO - Cupón encontrado: RTVAQC289D - Tienda: Beehive Meals (confianza: 0.56)
+2026-01-25 17:16:51 - CouponNotifier - INFO - Procesando: get this for 50% OFF...code inside... (Remitente: Hoop Culture <info@hoopculture.com>)
+2026-01-25 17:16:51 - CouponNotifier - INFO - Cupón encontrado: DCCC612C - Tienda: Hoop Culture (confianza: 0.56)
+2026-01-25 17:16:51 - CouponNotifier - INFO - Procesando: Flash Sale: 50+ All New Designs!... (Remitente: "Rhythm & Beat" <support@rhythmandbeat.com>)
+2026-01-25 17:16:51 - CouponNotifier - INFO - Cupón encontrado: 1343KJPANRW - Tienda: Rhythm & Beat (confianza: 0.56)
+2026-01-25 17:16:51 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-01-25 17:22:17 - CouponNotifier - INFO - Conexión a base de datos cerrada

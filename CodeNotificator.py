@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import os
 import sqlite3
 import threading
@@ -7,43 +7,92 @@ import queue
 import base64
 import json
 import webbrowser
-from datetime import datetime
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+import logging
+import logging.handlers 
+import traceback
+from datetime import datetime, timedelta
 import pytesseract
 from PIL import Image
 import io
 import numpy as np
 import cv2
 import re
+import validators
+import math
+
+# Verificar disponibilidad de bibliotecas
+ML_AVAILABLE = False  # Desactivamos scikit-learn
+print("Modo sin scikit-learn: usando reglas heurísticas mejoradas")
+
+try:
+    import win10toast
+    NOTIFICATIONS_AVAILABLE = True
+except ImportError:
+    try:
+        from plyer import notification
+        NOTIFICATIONS_AVAILABLE = True
+    except ImportError:
+        NOTIFICATIONS_AVAILABLE = False
+        print("Advertencia: win10toast/plyer no instalado. Las notificaciones estarán desactivadas.")
+        print("Instala con: pip install win10toast")
+
+# Consulta de búsqueda por defecto para Gmail
+DEFAULT_SEARCH_QUERY = ''
+DEFAULT_SEARCH_KEYWORDS = ''
+DEFAULT_MAX_EMAILS = 15
 
 # ==============================================
-# CONFIGURACIÓN DE TESSERACT (Ajusta según tu sistema)
+# CONFIGURACIÓN DE LOGGING
 # ==============================================
-# Windows (descomenta y ajusta la ruta):
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+def setup_logging():
+    """Configura el sistema de logging con rotación de archivos"""
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    
+    logger = logging.getLogger('CouponNotifier')
+    logger.setLevel(logging.INFO)
+    
+    if logger.handlers:
+        return logger
+    
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    file_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(log_dir, 'coupon_notifier.log'),
+        maxBytes=5*1024*1024,
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.WARNING)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
 
-# Linux:
-# sudo apt-get install tesseract-ocr tesseract-ocr-spa
-
-# macOS:
-# brew install tesseract
+logger = setup_logging()
 
 # ==============================================
 # CLASE PARA MANEJO DE BASE DE DATOS
 # ==============================================
 class DatabaseManager:
     def __init__(self, db_path):
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.create_tables()
     
     def create_tables(self):
-        """Crea las tablas necesarias si no existen"""
-        self.cursor.execute('''
+        cursor = self.conn.cursor()
+        
+        # Tabla principal de notificaciones
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS notifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 cupon TEXT NOT NULL, 
@@ -51,10 +100,15 @@ class DatabaseManager:
                 URL TEXT NOT NULL, 
                 descuento TEXT,
                 estado TEXT DEFAULT 'nuevo',
-                Fecha DATETIME DEFAULT CURRENT_TIMESTAMP)
+                usuario_valido INTEGER DEFAULT 0,
+                es_valido INTEGER DEFAULT 1,
+                confianza REAL DEFAULT 0.5,
+                Fecha DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
         ''')
         
-        self.cursor.execute('''
+        # Tabla de configuración
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS config (
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 intervalo_minutos INTEGER DEFAULT 30,
@@ -62,25 +116,81 @@ class DatabaseManager:
                 client_secret TEXT,
                 refresh_token TEXT,
                 ultimo_escaneo DATETIME,
+                notificaciones_activas INTEGER DEFAULT 1,
+                aprendizaje_activo INTEGER DEFAULT 1,
                 CHECK (id = 1)
             )
         ''')
         
-        # Insertar configuración por defecto si no existe
-        self.cursor.execute('''
+        cursor.execute('''
             INSERT OR IGNORE INTO config (id, intervalo_minutos) 
             VALUES (1, 30)
         ''')
         
+        # Verificar y agregar columnas si no existen
+        cursor.execute("PRAGMA table_info(config)")
+        cols = [row[1] for row in cursor.fetchall()]
+        
+        columnas_a_agregar = [
+            ('search_query', 'TEXT'),
+            ('search_keywords', 'TEXT'),
+            ('max_emails', 'INTEGER')
+        ]
+        
+        for col_name, col_type in columnas_a_agregar:
+            if col_name not in cols:
+                cursor.execute(f"ALTER TABLE config ADD COLUMN {col_name} {col_type}")
+        
+        # Valores por defecto
+        cursor.execute(
+            "UPDATE config SET search_query = ? WHERE id = 1 AND (search_query IS NULL OR search_query = '')",
+            (DEFAULT_SEARCH_QUERY,)
+        )
+        cursor.execute(
+            "UPDATE config SET search_keywords = ? WHERE id = 1 AND (search_keywords IS NULL OR search_keywords = '')",
+            (DEFAULT_SEARCH_KEYWORDS,)
+        )
+        cursor.execute(
+            "UPDATE config SET max_emails = ? WHERE id = 1 AND (max_emails IS NULL OR max_emails < 1)",
+            (DEFAULT_MAX_EMAILS,)
+        )
+        
+        # Tabla de aprendizaje simplificada (sin ML)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS learning_patterns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tienda TEXT,
+                patron TEXT,
+                total_apariciones INTEGER DEFAULT 0,
+                exitosos INTEGER DEFAULT 0,
+                confianza REAL DEFAULT 0.0,
+                ultimo_uso DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Tabla de feedback del usuario
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cupon_id INTEGER,
+                cupon_text TEXT,
+                tienda TEXT,
+                es_valido BOOLEAN,
+                comentario TEXT,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (cupon_id) REFERENCES notifications(id)
+            )
+        ''')
+        
         self.conn.commit()
+        logger.info("Tablas de base de datos creadas/verificadas")
     
     def get_config(self):
-        """Obtiene la configuración"""
-        self.cursor.execute("SELECT * FROM config WHERE id = 1")
-        return self.cursor.fetchone()
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM config WHERE id = 1")
+        return cursor.fetchone()
     
     def update_config(self, **kwargs):
-        """Actualiza la configuración"""
         if not kwargs:
             return
         
@@ -94,64 +204,368 @@ class DatabaseManager:
         
         if set_clause:
             query = f"UPDATE config SET {', '.join(set_clause)} WHERE id = 1"
-            self.cursor.execute(query, values)
+            cursor = self.conn.cursor()
+            cursor.execute(query, values)
             self.conn.commit()
+            logger.info(f"Configuración actualizada: {', '.join(kwargs.keys())}")
     
     def update_last_scan(self):
-        """Actualiza la fecha del último escaneo"""
-        self.cursor.execute(
+        cursor = self.conn.cursor()
+        cursor.execute(
             "UPDATE config SET ultimo_escaneo = CURRENT_TIMESTAMP WHERE id = 1"
         )
         self.conn.commit()
     
-    def add_notification(self, cupon, tienda, url, descuento=None):
-        """Agrega una nueva notificación"""
-        self.cursor.execute(
-            "INSERT INTO notifications (cupon, tienda, URL, descuento) VALUES (?, ?, ?, ?)",
-            (cupon, tienda, url, descuento)
+    def add_notification(self, cupon, tienda, url, descuento=None, confianza=0.5):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza) VALUES (?, ?, ?, ?, ?)",
+            (cupon, tienda, url, descuento, confianza)
         )
         self.conn.commit()
-        return self.cursor.lastrowid
+        logger.info(f"Cupón agregado: {cupon} - {tienda} (confianza: {confianza:.2f})")
+        return cursor.lastrowid
     
     def notification_exists(self, cupon):
-        """Verifica si un cupón ya existe"""
-        self.cursor.execute(
+        cursor = self.conn.cursor()
+        cursor.execute(
             "SELECT 1 FROM notifications WHERE cupon = ? LIMIT 1",
             (cupon,)
         )
-        return self.cursor.fetchone() is not None
+        return cursor.fetchone() is not None
     
     def get_notifications(self, limit=100, estado=None):
-        """Obtiene notificaciones"""
-        query = "SELECT cupon, tienda, URL, descuento, Fecha FROM notifications"
+        query = "SELECT id, cupon, tienda, URL, descuento, estado, usuario_valido, es_valido, confianza, Fecha FROM notifications"
         params = []
         
         if estado:
             query += " WHERE estado = ?"
             params.append(estado)
         
-        query += " ORDER BY Fecha DESC LIMIT ?"
+        query += " ORDER BY confianza DESC, Fecha DESC LIMIT ?"
         params.append(limit)
         
-        self.cursor.execute(query, params)
-        return self.cursor.fetchall()
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchall()
     
-    def mark_as_read(self, cupon_id):
-        """Marca una notificación como leída"""
-        self.cursor.execute(
-            "UPDATE notifications SET estado = 'leido' WHERE id = ?",
-            (cupon_id,)
+    def get_search_query(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT search_query FROM config WHERE id = 1")
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+        return DEFAULT_SEARCH_QUERY
+    
+    def get_max_emails(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT max_emails FROM config WHERE id = 1")
+        row = cursor.fetchone()
+        if row and row[0]:
+            try:
+                return max(int(row[0]), 1)
+            except:
+                return DEFAULT_MAX_EMAILS
+        return DEFAULT_MAX_EMAILS
+    
+    def update_cupon_validity(self, cupon_id, es_valido, confianza=1.0):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE notifications SET es_valido = ?, usuario_valido = 1, confianza = ? WHERE id = ?",
+            (1 if es_valido else 0, confianza, cupon_id)
         )
         self.conn.commit()
+        logger.info(f"Cupón {cupon_id} marcado como {'válido' if es_valido else 'inválido'}")
     
-    def clear_notifications(self):
-        """Elimina todas las notificaciones"""
-        self.cursor.execute("DELETE FROM notifications")
+    def add_user_feedback(self, cupon_id, cupon_text, tienda, es_valido, comentario=""):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            INSERT INTO user_feedback (cupon_id, cupon_text, tienda, es_valido, comentario)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (cupon_id, cupon_text, tienda, 1 if es_valido else 0, comentario))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def update_learning_pattern(self, tienda, patron, es_valido):
+        cursor = self.conn.cursor()
+        
+        # Buscar patrón existente
+        cursor.execute('''
+            SELECT id, total_apariciones, exitosos 
+            FROM learning_patterns 
+            WHERE tienda = ? AND patron = ?
+        ''', (tienda, patron))
+        
+        row = cursor.fetchone()
+        
+        if row:
+            # Actualizar existente
+            pattern_id, total, exitosos = row
+            total += 1
+            exitosos += 1 if es_valido else 0
+            confianza = exitosos / total if total > 0 else 0.0
+            
+            cursor.execute('''
+                UPDATE learning_patterns 
+                SET total_apariciones = ?, exitosos = ?, confianza = ?, ultimo_uso = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (total, exitosos, confianza, pattern_id))
+        else:
+            # Insertar nuevo
+            confianza = 1.0 if es_valido else 0.0
+            exitosos = 1 if es_valido else 0
+            
+            cursor.execute('''
+                INSERT INTO learning_patterns (tienda, patron, total_apariciones, exitosos, confianza)
+                VALUES (?, ?, 1, ?, ?)
+            ''', (tienda, patron, exitosos, confianza))
+        
         self.conn.commit()
     
+    def get_pattern_confidence(self, tienda, patron):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT confianza FROM learning_patterns 
+            WHERE tienda = ? AND patron = ?
+        ''', (tienda, patron))
+        
+        row = cursor.fetchone()
+        return row[0] if row else 0.5
+    
+    def get_learning_stats(self):
+        cursor = self.conn.cursor()
+        
+        # Estadísticas de feedback
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total_feedback,
+                SUM(CASE WHEN es_valido = 1 THEN 1 ELSE 0 END) as validos,
+                COUNT(DISTINCT tienda) as tiendas_aprendidas
+            FROM user_feedback
+        ''')
+        feedback_stats = cursor.fetchone()
+        
+        # Estadísticas de patrones
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total_patrones,
+                AVG(confianza) as confianza_promedio
+            FROM learning_patterns
+        ''')
+        pattern_stats = cursor.fetchone()
+        
+        return feedback_stats, pattern_stats
+    
+    def get_top_patterns(self, limit=10):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT tienda, patron, confianza, total_apariciones
+            FROM learning_patterns 
+            WHERE total_apariciones > 0
+            ORDER BY confianza DESC, total_apariciones DESC
+            LIMIT ?
+        ''', (limit,))
+        return cursor.fetchall()
+    
     def close(self):
-        """Cierra la conexión a la base de datos"""
         self.conn.close()
+        logger.info("Conexión a base de datos cerrada")
+
+# ==============================================
+# SISTEMA DE APRENDIZAJE SIMPLIFICADO (SIN scikit-learn)
+# ==============================================
+class SimpleLearningSystem:
+    def __init__(self, db_manager):
+        self.db = db_manager
+        self.pattern_cache = {}
+        
+    def extract_pattern(self, texto_cupon):
+        """Extrae un patrón simplificado del código del cupón"""
+        texto = texto_cupon.upper().strip()
+        
+        # Detectar tipo de patrón
+        if '-' in texto:
+            parts = texto.split('-')
+            if len(parts) == 2:
+                return "XXXX-XXXX"
+            elif len(parts) == 3:
+                return "XXXX-XXXX-XXXX"
+            else:
+                return "MULTI-HYPHEN"
+        
+        # Verificar patrones comunes
+        if re.match(r'^[A-Z]{2}\d{6}$', texto):
+            return "LLDDDDDD"  # 2 letras + 6 dígitos
+        elif re.match(r'^\d{4}[A-Z]{3}$', texto):
+            return "DDDDLLL"   # 4 dígitos + 3 letras
+        elif re.match(r'^[A-Z]{3}\d{5}$', texto):
+            return "LLLDDDDD"  # 3 letras + 5 dígitos
+        elif re.match(r'^[A-Z]{4}\d{4}$', texto):
+            return "LLLLDDDD"  # 4 letras + 4 dígitos
+        elif re.match(r'^\d{8}$', texto):
+            return "DDDDDDDD"  # 8 dígitos
+        elif re.match(r'^[A-Z]{8}$', texto):
+            return "LLLLLLLL"  # 8 letras
+        elif re.match(r'^[A-Z0-9]{8}$', texto):
+            return "ALPHANUM8"  # 8 caracteres alfanuméricos
+        elif re.match(r'^[A-Z0-9]{10}$', texto):
+            return "ALPHANUM10" # 10 caracteres alfanuméricos
+        
+        # Patrón por longitud y composición
+        length = len(texto)
+        digit_count = sum(1 for c in texto if c.isdigit())
+        letter_count = sum(1 for c in texto if c.isalpha())
+        
+        if digit_count == 0:
+            return f"ALL_LETTERS_{length}"
+        elif letter_count == 0:
+            return f"ALL_DIGITS_{length}"
+        else:
+            ratio = digit_count / max(letter_count, 1)
+            if ratio > 2:
+                return f"MOSTLY_DIGITS_{length}"
+            elif ratio < 0.5:
+                return f"MOSTLY_LETTERS_{length}"
+            else:
+                return f"MIXED_{length}"
+    
+    def calculate_confidence(self, texto_cupon, tienda=None):
+        """Calcula confianza basada en reglas heurísticas y aprendizaje previo"""
+        texto = texto_cupon.upper().strip()
+        
+        # Reglas básicas de validez
+        if len(texto) < 4 or len(texto) > 25:
+            return 0.1  # Muy baja confianza
+        
+        has_digit = any(c.isdigit() for c in texto)
+        has_letter = any(c.isalpha() for c in texto)
+        
+        if not (has_digit and has_letter):
+            return 0.2  # Baja confianza
+        
+        # Patrones comunes de cupones válidos
+        common_valid_patterns = [
+            r'^[A-Z0-9]{4,}$',
+            r'^[A-Z0-9]{4,}-[A-Z0-9]{4,}$',
+            r'^[A-Z]{2,}\d{3,}[A-Z]{0,3}$',
+            r'^\d{4,}[A-Z]{2,}$',
+            r'^[A-Z0-9]{8,12}$',
+        ]
+        
+        for pattern in common_valid_patterns:
+            if re.match(pattern, texto):
+                base_confidence = 0.7
+                break
+        else:
+            base_confidence = 0.4
+        
+        # Ajustar por tienda específica si tenemos datos
+        if tienda:
+            patron = self.extract_pattern(texto)
+            learned_confidence = self.db.get_pattern_confidence(tienda, patron)
+            
+            # Combinar confianza aprendida con reglas heurísticas
+            if learned_confidence > 0:
+                # Ponderar: 70% aprendizaje, 30% reglas heurísticas
+                final_confidence = (learned_confidence * 0.7) + (base_confidence * 0.3)
+                return min(max(final_confidence, 0.1), 0.95)
+        
+        return base_confidence
+    
+    def learn_from_feedback(self, cupon_text, tienda, es_valido):
+        """Aprende del feedback del usuario"""
+        patron = self.extract_pattern(cupon_text)
+        
+        # Actualizar en base de datos
+        self.db.update_learning_pattern(tienda, patron, es_valido)
+        
+        # Actualizar caché
+        cache_key = f"{tienda}_{patron}"
+        if cache_key not in self.pattern_cache:
+            self.pattern_cache[cache_key] = {'total': 0, 'success': 0}
+        
+        self.pattern_cache[cache_key]['total'] += 1
+        if es_valido:
+            self.pattern_cache[cache_key]['success'] += 1
+        
+        logger.info(f"Aprendizaje: {cupon_text} -> {patron} ({'válido' if es_valido else 'inválido'})")
+    
+    def get_stats(self):
+        """Obtiene estadísticas del sistema de aprendizaje"""
+        feedback_stats, pattern_stats = self.db.get_learning_stats()
+        
+        return {
+            'total_feedback': feedback_stats[0] if feedback_stats else 0,
+            'valid_feedback': feedback_stats[1] if feedback_stats else 0,
+            'stores_learned': feedback_stats[2] if feedback_stats else 0,
+            'total_patterns': pattern_stats[0] if pattern_stats else 0,
+            'avg_confidence': pattern_stats[1] if pattern_stats else 0.0,
+        }
+
+# ==============================================
+# SISTEMA DE NOTIFICACIONES
+# ==============================================
+class SystemNotifier:
+    def __init__(self, enabled=True):
+        self.enabled = enabled and NOTIFICATIONS_AVAILABLE
+        self.last_notification = None
+        self.min_interval = timedelta(seconds=30)
+    
+    def show_notification(self, title, message, duration=5):
+        if not self.enabled:
+            return
+        
+        now = datetime.now()
+        if self.last_notification and (now - self.last_notification) < self.min_interval:
+            return
+        
+        try:
+            if 'win10toast' in globals():
+                toast = win10toast.ToastNotifier()
+                toast.show_toast(title, message, duration=duration, threaded=True)
+            elif 'notification' in globals():
+                notification.notify(title=title, message=message, timeout=duration)
+            
+            self.last_notification = now
+            logger.info(f"Notificación: {title}")
+            
+        except Exception as e:
+            logger.error(f"Error en notificación: {e}")
+            print(f"🔔 {title}: {message}")
+    
+    def notify_new_coupons(self, count, coupons_list):
+        if count == 0 or not self.enabled:
+            return
+        
+        title = "🎉 Nuevos Cupones"
+        
+        if count == 1:
+            cupon = coupons_list[0]
+            message = f"{cupon['codigo']} - {cupon['tienda']}"
+            if cupon.get('descuento'):
+                message += f" ({cupon['descuento']})"
+        elif count <= 3:
+            cupones_str = ", ".join([c['codigo'] for c in coupons_list[:3]])
+            message = f"{count} nuevos: {cupones_str}"
+        else:
+            message = f"¡{count} cupones nuevos!"
+        
+        self.show_notification(title, message)
+    
+    def notify_scan_complete(self, total_found, new_count):
+        if not self.enabled:
+            return
+        
+        title = "🔍 Escaneo Completado"
+        message = f"{new_count} nuevos ({total_found} total)" if new_count > 0 else f"{total_found} en total"
+        
+        self.show_notification(title, message)
+    
+    def enable(self):
+        self.enabled = True and NOTIFICATIONS_AVAILABLE
+    
+    def disable(self):
+        self.enabled = False
 
 # ==============================================
 # AUTENTICACIÓN GMAIL
@@ -161,55 +575,71 @@ class GmailAuthenticator:
     
     @staticmethod
     def obtener_tokens_interactivo():
-        """Obtiene tokens de forma interactiva (solo primera vez)"""
-        credenciales = {
-            "installed": {
-                "client_id": "1001519020081-igeh7pqvvkp0unetgnks4o8na4jir7o6.apps.googleusercontent.com",
-                "project_id": "codenotifier-485100",
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_secret": "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",
-                "redirect_uris": ["http://localhost"]
-            }
-        }
-        
-        # Guardar temporalmente
-        with open('temp_creds.json', 'w') as f:
-            json.dump(credenciales, f)
-        
         try:
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            import tkinter as tk
+            from tkinter import filedialog
+            
+            root = tk.Tk()
+            root.withdraw()
+            
+            file_path = filedialog.askopenfilename(
+                title="Selecciona tu archivo credentials.json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            root.destroy()
+            
+            if not file_path:
+                raise ValueError("No se seleccionó archivo credentials.json")
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                credenciales = json.load(f)
+            
+            with open('temp_creds.json', 'w') as f:
+                json.dump(credenciales, f)
+            
             flow = InstalledAppFlow.from_client_secrets_file(
                 'temp_creds.json',
                 GmailAuthenticator.SCOPES
             )
             
-            creds = flow.run_local_server(
-                port=8080,
-                prompt='consent',
-                authorization_prompt_message=''
-            )
+            creds = flow.run_local_server(port=8080, prompt='consent')
             
+            container = credenciales.get('installed') or credenciales.get('web')
+            if not container:
+                raise ValueError('El credentials.json no contiene las claves esperadas.')
+            
+            client_id = container.get('client_id')
+            client_secret = container.get('client_secret')
+            
+            if not client_id or not client_secret:
+                raise ValueError('Faltan client_id o client_secret en credentials.json.')
+            
+            logger.info("Tokens obtenidos exitosamente")
             return {
-                'client_id': credenciales['installed']['client_id'],
-                'client_secret': credenciales['installed']['client_secret'],
+                'client_id': client_id,
+                'client_secret': client_secret,
                 'refresh_token': creds.refresh_token
             }
             
+        except Exception as e:
+            logger.error(f"Error obteniendo tokens: {e}")
+            raise
         finally:
             if os.path.exists('temp_creds.json'):
                 os.remove('temp_creds.json')
     
     @staticmethod
     def get_credentials(db_manager):
-        """Obtiene credenciales desde la base de datos"""
+        from google.oauth2.credentials import Credentials
         config = db_manager.get_config()
         if not config:
             return None
         
-        client_id = config[2]  # índice 2 = client_id
-        client_secret = config[3]  # índice 3 = client_secret
-        refresh_token = config[4]  # índice 4 = refresh_token
+        client_id = config[2]
+        client_secret = config[3]
+        refresh_token = config[4]
         
         if not all([client_id, client_secret, refresh_token]):
             return None
@@ -224,278 +654,331 @@ class GmailAuthenticator:
         )
 
 # ==============================================
-# PROCESADOR GMAIL + OCR
+# PROCESADOR GMAIL + OCR CON APRENDIZAJE SIMPLIFICADO
 # ==============================================
 class GmailOCRProcessor:
-    def __init__(self, db_manager):
+    def __init__(self, db_manager, learning_system=None):
         self.db = db_manager
+        self.learning_system = learning_system
         self.service = None
+        self.credentials = None
+        self.last_auth = None
+        self.auth_timeout = 3500
+        self.current_email = None
+        self.is_authenticated = False
     
-    def authenticate(self):
-        """Autentica con Gmail API"""
+    def authenticate(self, force_refresh=False):
         try:
+            from google.auth.transport.requests import Request
+            from googleapiclient.discovery import build
+            
+            if (not force_refresh and self.is_authenticated and self.last_auth and 
+                (datetime.now() - self.last_auth).seconds < self.auth_timeout):
+                return True, "Autenticación en cache"
+            
             creds = GmailAuthenticator.get_credentials(self.db)
             if not creds:
                 return False, "Credenciales no configuradas"
             
-            # Refrescar token si es necesario
-            if creds.expired:
+            if creds.expired or force_refresh:
                 creds.refresh(Request())
             
-            # Construir servicio
             self.service = build('gmail', 'v1', credentials=creds)
+            self.credentials = creds
+            self.is_authenticated = True
+            self.last_auth = datetime.now()
+
+            try:
+                profile = self.service.users().getProfile(userId='me').execute()
+                self.current_email = profile.get('emailAddress')
+                logger.info(f"Autenticado como: {self.current_email}")
+            except:
+                self.current_email = None
+
             return True, "Autenticación exitosa"
             
         except Exception as e:
+            logger.error(f"Error de autenticación: {e}")
+            self.is_authenticated = False
             return False, f"Error de autenticación: {str(e)}"
     
     def search_emails(self, query=None, max_results=20):
-        """Busca correos"""
         try:
-            if not query:
-                query = '(subject:cupón OR subject:descuento OR subject:oferta OR subject:promoción) has:attachment'
-            
-            results = self.service.users().messages().list(
-                userId='me',
-                q=query,
-                maxResults=max_results
-            ).execute()
-            
-            return results.get('messages', [])
+            if not self.service:
+                success, _ = self.authenticate()
+                if not success:
+                    return []
+
+            params = {'userId': 'me', 'maxResults': max_results}
+            if query and str(query).strip():
+                params['q'] = str(query).strip()
+
+            results = self.service.users().messages().list(**params).execute()
+            messages = results.get('messages', [])
+            logger.info(f"Encontrados {len(messages)} correos")
+            return messages
+
         except Exception as e:
-            print(f"Error buscando correos: {e}")
+            logger.error(f"Error buscando correos: {e}")
             return []
     
-    def preprocess_image(self, image_data):
-        """Preprocesa imagen para mejorar OCR"""
+    def extract_text(self, image_data):
         try:
-            # Bytes a imagen PIL
             image = Image.open(io.BytesIO(image_data))
-            
-            # Convertir a RGB si es necesario
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
-            # Convertir a numpy array
+            # Procesamiento simple de imagen
             img_array = np.array(image)
-            
-            # Convertir a escala de grises
             if len(img_array.shape) == 3:
                 gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
             else:
                 gray = img_array
             
-            # Aplicar threshold adaptativo
-            thresh = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY, 11, 2
-            )
-            
-            # Reducir ruido
-            denoised = cv2.medianBlur(thresh, 3)
-            
-            return Image.fromarray(denoised)
-            
-        except Exception as e:
-            print(f"Error preprocesando imagen: {e}")
-            return None
-    
-    def extract_text(self, image_data, languages=['spa', 'eng']):
-        """Extrae texto de una imagen"""
-        try:
-            # Preprocesar imagen
-            processed_img = self.preprocess_image(image_data)
-            if processed_img is None:
-                return ""
-            
-            # Configurar idiomas
-            lang_str = '+'.join(languages)
-            
-            # Configuración de Tesseract
-            config = '--psm 6 --oem 3'
-            
-            # Extraer texto
-            text = pytesseract.image_to_string(
-                processed_img,
-                lang=lang_str,
-                config=config
-            )
-            
+            # Aplicar OCR
+            text = pytesseract.image_to_string(gray, lang='spa+eng', config='--psm 6')
             return text.strip()
             
         except Exception as e:
-            print(f"Error en OCR: {e}")
+            logger.error(f"Error en OCR: {e}")
             return ""
     
-    def extract_coupon_info(self, text):
-        """Extrae información de cupón del texto"""
+    def extract_store_name_from_sender(self, from_header):
+        """
+        Extrae el nombre de la tienda del remitente del correo.
+        Ejemplo: "The M Jewelers <contact@themjewelersny.com>" -> "The M Jewelers"
+        """
+        if not from_header:
+            return "Desconocida"
+        
+        try:
+            # Patrón 1: Nombre <email@dominio.com>
+            match = re.match(r'^"?([^"<]+)"?\s*<[^>]+>$', from_header)
+            if match:
+                store_name = match.group(1).strip()
+                # Limpiar comillas adicionales
+                store_name = store_name.strip('"\'')
+                if store_name:
+                    return store_name
+            
+            # Patrón 2: Solo email - extraer del dominio
+            email_match = re.search(r'<([^>]+)>', from_header)
+            if email_match:
+                email = email_match.group(1)
+                # Intentar extraer del dominio
+                domain_match = re.search(r'@([^.]+)', email)
+                if domain_match:
+                    domain_part = domain_match.group(1)
+                    # Convertir a formato legible (ej: themjewelersny -> The M Jewelers NY)
+                    store_name = domain_part.replace('themjewelersny', 'The M Jewelers')
+                    store_name = ' '.join(word.capitalize() for word in re.split(r'[^a-zA-Z0-9]+', store_name))
+                    return store_name
+            
+            # Si no coincide ningún patrón, usar el header completo
+            if from_header and '@' in from_header:
+                # Extraer la parte antes del <
+                name_part = from_header.split('<')[0].strip()
+                if name_part:
+                    return name_part.strip('"\'')
+            
+            return "Desconocida"
+            
+        except Exception as e:
+            logger.error(f"Error extrayendo nombre del remitente '{from_header}': {e}")
+            return "Desconocida"
+    
+    def extract_coupon_info(self, text, tienda_from_sender=None):
         info = {
             'codigo': '',
             'tienda': 'Desconocida',
             'url': '',
             'descuento': '',
-            'valido_hasta': ''
+            'contexto': text[:300]
         }
         
-        # Buscar código de cupón (patrones comunes)
+        # Si tenemos tienda del remitente, usarla como valor predeterminado
+        if tienda_from_sender and tienda_from_sender != 'Desconocida':
+            info['tienda'] = tienda_from_sender
+        
+        # Buscar descuento
+        desc_matches = re.findall(r'(\d{1,3}(?:[,.]\d{1,2})?)%', text)
+        if desc_matches:
+            info['descuento'] = f"{max(desc_matches, key=lambda x: float(x.replace(',', '.')))}%"
+        
+        # Buscar códigos
         patterns = [
-            r'[A-Z0-9]{4,}-[A-Z0-9]{4,}-[A-Z0-9]{4,}',  # ABC1-DEF2-GHI3
-            r'[A-Z0-9]{8,12}',  # Códigos largos sin guiones
-            r'C[OÓ]DIGO[:]?\s*([A-Z0-9\-]+)',  # "CÓDIGO: ABC123"
-            r'cup[oó]n[:]?\s*([A-Z0-9\-]+)',  # "cupón: ABC123"
+            r'(?:codigo|código|cup[oó]n|promo|coupon|code)[:\s\-]*([A-Z0-9\-]{6,20})',
+            r'([A-Z0-9]{4,}[-\s]?[A-Z0-9]{4,}[-\s]?[A-Z0-9]{4,})',
+            r'CODE\s*[:=]?\s*([A-Z0-9\-]+)',
+            r'([A-Z]{2,}\d{3,}[A-Z]{0,3})',
+            r'(\d{4,}[A-Z]{2,})',
         ]
         
+        found_codes = []
         for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                info['codigo'] = match.group(1) if len(match.groups()) > 0 else match.group()
-                break
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                code = match.group(1).upper().strip()
+                if self.is_valid_coupon_code(code, info['tienda']):
+                    found_codes.append(code)
         
-        # Buscar porcentaje de descuento
-        desc_match = re.search(r'(\d{1,3})%', text)
-        if desc_match:
-            info['descuento'] = f"{desc_match.group(1)}%"
+        if found_codes:
+            # Seleccionar el código más largo o el que tenga contexto de "CODE"
+            for code in found_codes:
+                context_start = max(0, text.upper().find(code) - 20)
+                context_end = min(len(text), text.upper().find(code) + len(code) + 20)
+                context = text[context_start:context_end].upper()
+                if any(keyword in context for keyword in ['CODE', 'CODIGO', 'CUPON']):
+                    info['codigo'] = code
+                    break
+            else:
+                info['codigo'] = max(found_codes, key=len)
         
         # Buscar URL
-        url_match = re.search(r'https?://[^\s]+', text)
+        url_match = re.search(r'https?://(?:www\.)?[\w\-]+(?:\.[\w\-]+)+[/\w\-\.]*', text)
         if url_match:
-            info['url'] = url_match.group()
+            info['url'] = url_match.group(0)
         
-        # Buscar nombre de tienda (patrones simples)
-        tiendas = ['amazon', 'mercado libre', 'ebay', 'aliexpress', 'walmart']
-        for tienda in tiendas:
-            if tienda in text.lower():
-                info['tienda'] = tienda.title()
-                break
-        
-        # Si no se encontró código, usar primeras palabras como referencia
-        if not info['codigo'] and len(text) > 10:
-            words = text.split()[:5]
-            info['codigo'] = ' '.join(words)
+        # Solo identificar tienda desde el texto si no tenemos del remitente
+        if info['tienda'] == 'Desconocida':
+            tiendas = {
+                'amazon': ['amazon', 'amzn'],
+                'mercado libre': ['mercado libre', 'mercadolibre', 'ml'],
+                'ebay': ['ebay'],
+                'aliexpress': ['aliexpress'],
+                'walmart': ['walmart'],
+            }
+            
+            text_lower = text.lower()
+            for tienda, keywords in tiendas.items():
+                if any(keyword in text_lower for keyword in keywords):
+                    info['tienda'] = tienda.title()
+                    break
         
         return info
     
+    def is_valid_coupon_code(self, code, tienda=None):
+        """Verifica si un código es probablemente un cupón válido"""
+        if not code or len(code) < 4 or len(code) > 25:
+            return False
+        
+        # Usar sistema de aprendizaje si está disponible
+        if self.learning_system:
+            confidence = self.learning_system.calculate_confidence(code, tienda)
+            return confidence > 0.5  # Umbral del 50%
+        
+        # Reglas heurísticas básicas
+        has_digit = any(c.isdigit() for c in code)
+        has_letter = any(c.isalpha() for c in code)
+        
+        if not (has_digit and has_letter):
+            return False
+        
+        # Verificar patrones comunes
+        patterns = [
+            r'^[A-Z0-9]{4,}$',
+            r'^[A-Z0-9]{4,}-[A-Z0-9]{4,}$',
+            r'^[A-Z]{2,}\d{3,}[A-Z]{0,3}$',
+            r'^\d{4,}[A-Z]{2,}$',
+        ]
+        
+        return any(re.match(pattern, code, re.IGNORECASE) for pattern in patterns)
+    
     def process_email(self, message_id):
-        """Procesa un correo específico"""
         try:
-            # Obtener el correo
             message = self.service.users().messages().get(
-                userId='me',
-                id=message_id,
-                format='full'
-            ).execute()
+                userId='me', id=message_id, format='full').execute()
             
-            # Extraer asunto
             headers = message.get('payload', {}).get('headers', [])
+            
+            # Obtener asunto
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Sin asunto')
             
-            print(f"Procesando: {subject[:50]}...")
+            # Obtener remitente para identificar tienda
+            from_header = next((h['value'] for h in headers if h['name'] == 'From'), '')
+            tienda_from_email = self.extract_store_name_from_sender(from_header)
             
-            # Buscar adjuntos de imagen
-            attachments = self.extract_attachments(message)
+            logger.info(f"Procesando: {subject[:50]}... (Remitente: {from_header})")
             coupons_found = []
             
-            for att in attachments:
-                # Aplicar OCR
-                text = self.extract_text(att['data'])
+            # Extraer texto del cuerpo del correo
+            def extract_body(part):
+                if part.get('mimeType') == 'text/plain' and part.get('body', {}).get('data'):
+                    data = part['body']['data']
+                    return base64.urlsafe_b64decode(data.encode('UTF-8')).decode('utf-8', errors='ignore')
                 
-                if text:
-                    # Extraer información
-                    coupon_info = self.extract_coupon_info(text)
+                if 'parts' in part:
+                    for subpart in part['parts']:
+                        text = extract_body(subpart)
+                        if text:
+                            return text
+                return ""
+            
+            body_text = extract_body(message.get('payload', {}))
+            
+            if body_text:
+                coupon_info = self.extract_coupon_info(body_text, tienda_from_email)
+                
+                # Si encontramos un cupón, usar el nombre de la tienda del remitente
+                if coupon_info['codigo']:
+                    # Priorizar el nombre extraído del remitente
+                    if tienda_from_email and tienda_from_email != 'Desconocida':
+                        coupon_info['tienda'] = tienda_from_email
                     
-                    if coupon_info['codigo']:
-                        coupons_found.append({
-                            'asunto': subject,
-                            'archivo': att['filename'],
-                            **coupon_info,
-                            'texto_original': text[:200] + "..." if len(text) > 200 else text
-                        })
+                    # Calcular confianza
+                    confidence = 0.7  # Valor por defecto
+                    if self.learning_system:
+                        confidence = self.learning_system.calculate_confidence(
+                            coupon_info['codigo'], coupon_info['tienda']
+                        )
+                    
+                    coupon_info['confianza'] = confidence
+                    coupon_info['remitente'] = from_header  # Guardar el remitente completo
+                    coupons_found.append(coupon_info)
+                    logger.info(f"Cupón encontrado: {coupon_info['codigo']} - Tienda: {coupon_info['tienda']} (confianza: {confidence:.2f})")
             
             return coupons_found
             
         except Exception as e:
-            print(f"Error procesando email {message_id}: {e}")
+            logger.error(f"Error procesando email: {e}")
             return []
     
-    def extract_attachments(self, message):
-        """Extrae adjuntos del correo"""
-        attachments = []
-        
-        def process_part(part):
-            if part.get('filename'):
-                filename = part['filename'].lower()
-                
-                # Verificar si es imagen
-                if any(filename.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']):
-                    attachment_id = part.get('body', {}).get('attachmentId')
-                    
-                    if attachment_id:
-                        try:
-                            # Descargar adjunto
-                            attachment = self.service.users().messages().attachments().get(
-                                userId='me',
-                                messageId=message['id'],
-                                id=attachment_id
-                            ).execute()
-                            
-                            # Decodificar
-                            file_data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8'))
-                            
-                            attachments.append({
-                                'filename': part['filename'],
-                                'data': file_data,
-                                'size': len(file_data)
-                            })
-                            
-                        except Exception as e:
-                            print(f"Error descargando adjunto {filename}: {e}")
-            
-            # Procesar partes anidadas
-            if 'parts' in part:
-                for subpart in part['parts']:
-                    process_part(subpart)
-        
-        # Procesar partes principales
-        payload = message.get('payload', {})
-        process_part(payload)
-        
-        return attachments
-    
-    def scan_emails(self, max_emails=10):
-        """Escanea correos en busca de cupones"""
+    def scan_emails(self, max_emails=None):
+        logger.info("Iniciando escaneo de correos...")
         success, message = self.authenticate()
         if not success:
             return [], message
         
         try:
-            # Buscar correos recientes
-            emails = self.search_emails(max_results=max_emails)
+            if max_emails is None:
+                max_emails = self.db.get_max_emails()
+            
+            query = self.db.get_search_query()
+            emails = self.search_emails(query=query, max_results=max_emails)
             all_coupons = []
             
             for i, email in enumerate(emails, 1):
-                print(f"Procesando email {i}/{len(emails)}...")
                 coupons = self.process_email(email['id'])
-                all_coupons.extend(coupons)
+                for coupon in coupons:
+                    if not self.db.notification_exists(coupon['codigo']):
+                        # Guardar con confianza calculada
+                        self.db.add_notification(
+                            coupon['codigo'],
+                            coupon['tienda'],
+                            coupon['url'],
+                            coupon.get('descuento'),
+                            coupon.get('confianza', 0.5)
+                        )
+                        all_coupons.append(coupon)
             
-            # Filtrar duplicados y guardar en BD
-            unique_coupons = []
-            for coupon in all_coupons:
-                if not self.db.notification_exists(coupon['codigo']):
-                    self.db.add_notification(
-                        coupon['codigo'],
-                        coupon['tienda'],
-                        coupon['url'],
-                        coupon['descuento']
-                    )
-                    unique_coupons.append(coupon)
-            
-            # Actualizar último escaneo
             self.db.update_last_scan()
+            logger.info(f"Escaneo completado. Encontrados {len(all_coupons)} cupones nuevos")
             
-            return unique_coupons, f"Encontrados {len(unique_coupons)} cupones nuevos"
+            return all_coupons, f"Encontrados {len(all_coupons)} cupones nuevos"
             
         except Exception as e:
-            return [], f"Error en escaneo: {str(e)}"
+            logger.error(f"Error en escaneo: {traceback.format_exc()}")
+            return [], f"Error: {str(e)[:100]}"
 
 # ==============================================
 # INTERFAZ GRÁFICA PRINCIPAL
@@ -503,353 +986,308 @@ class GmailOCRProcessor:
 class CouponNotifierApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Notificador de Cupones de Descuento (Gmail)")
+        self.root.title("Notificador de Cupones Inteligente")
         self.root.geometry("1000x700")
         
-        # Configurar icono (opcional)
         try:
             self.root.iconbitmap('icon.ico')
         except:
             pass
         
-        # Base de datos
         db_path = os.path.join(os.path.dirname(__file__), 'notifications.db')
         self.db = DatabaseManager(db_path)
+        self.learning_system = SimpleLearningSystem(self.db)
+        self.processor = GmailOCRProcessor(self.db, self.learning_system)
+        self.notifier = SystemNotifier()
         
-        # Procesador
-        self.processor = GmailOCRProcessor(self.db)
-        
-        # Variables
         self.queue = queue.Queue()
         self.scanning = False
         self.auto_scan_id = None
+        self.selected_cupon_id = None
         
-        # Configurar interfaz
         self.setup_ui()
-        
-        # Cargar datos
         self.load_notifications()
-        
-        # Iniciar chequeo de queue
         self.check_queue()
-        
-        # Verificar configuración
         self.check_configuration()
+        
+        logger.info("Aplicación iniciada correctamente")
     
     def setup_ui(self):
-        """Configura la interfaz gráfica"""
-        # Configurar grid principal
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=1)
+        # Configuración de estilos
+        COLORS = {
+            'primary': '#2C3E50',
+            'secondary': '#3498DB',
+            'accent': '#E74C3C',
+            'success': '#27AE60',
+            'warning': '#F39C12',
+            'light': '#ECF0F1',
+            'dark': '#2C3E50',
+        }
+        
+        # Frame principal
+        main_frame = tk.Frame(self.root, bg=COLORS['light'])
+        main_frame.pack(fill="both", expand=True)
         
         # ========== BARRA SUPERIOR ==========
-        top_frame = tk.Frame(self.root, bg="#2c3e50", height=50)
-        top_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        top_frame.grid_columnconfigure(1, weight=1)
+        top_frame = tk.Frame(main_frame, bg=COLORS['primary'], height=70)
+        top_frame.pack(fill="x", pady=(0, 5))
         
-        # Título
-        title_label = tk.Label(
-            top_frame,
-            text="🛒 Notificador de Cupones",
-            font=("Arial", 16, "bold"),
-            bg="#2c3e50",
-            fg="white"
-        )
-        title_label.grid(row=0, column=0, padx=20, pady=10, sticky="w")
-        
-        # Estado
-        self.status_label = tk.Label(
-            top_frame,
-            text="Listo",
-            font=("Arial", 10),
-            bg="#2c3e50",
-            fg="#ecf0f1"
-        )
-        self.status_label.grid(row=0, column=2, padx=20, pady=10, sticky="e")
+        tk.Label(top_frame, text="🤖 NOTIFICADOR DE CUPONES INTELIGENTE", 
+                font=("Arial", 16, "bold"), bg=COLORS['primary'], fg="white").pack(pady=15)
         
         # ========== BARRA DE HERRAMIENTAS ==========
-        toolbar = tk.Frame(self.root, bg="#ecf0f1", height=40)
-        toolbar.grid(row=1, column=0, sticky="new", padx=0, pady=0)
+        toolbar = tk.Frame(main_frame, bg=COLORS['light'])
+        toolbar.pack(fill="x", padx=10, pady=5)
         
-        # Botones
         buttons = [
-            ("⚙️ Configuración", self.open_config),
-            ("🔍 Escanear Ahora", self.start_scan),
-            ("📋 Copiar Selección", self.copy_selection),
-            ("🌐 Abrir URL", self.open_url),
-            ("🗑️ Limpiar Todo", self.clear_all),
-            ("🔄 Actualizar", self.load_notifications)
+            ("⚙️ Configuración", self.open_config, COLORS['secondary']),
+            ("🔍 Escanear Ahora", self.start_scan, COLORS['success']),
+            ("📊 Estadísticas", self.show_stats, COLORS['warning']),
+            ("📋 Copiar", self.copy_selection, COLORS['secondary']),
+            ("🗑️ Limpiar", self.clear_all, COLORS['accent']),
         ]
         
-        for i, (text, command) in enumerate(buttons):
-            btn = tk.Button(
-                toolbar,
-                text=text,
-                command=command,
-                bg="#3498db",
-                fg="white",
-                font=("Arial", 10),
-                relief="flat",
-                padx=15,
-                pady=5
-            )
-            btn.grid(row=0, column=i, padx=5, pady=5)
+        for text, command, color in buttons:
+            btn = tk.Button(toolbar, text=text, command=command,
+                           bg=color, fg="white", font=("Arial", 10),
+                           relief="flat", padx=15, pady=5)
+            btn.pack(side="left", padx=2)
         
-        # ========== CONTENIDO PRINCIPAL ==========
-        main_frame = tk.Frame(self.root)
-        main_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
-        main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_rowconfigure(0, weight=1)
+        # ========== BARRA DE PROGRESO ==========
+        self.progress_frame = tk.Frame(main_frame, bg=COLORS['light'])
+        self.progress_frame.pack(fill="x", padx=10, pady=5)
         
-        # Treeview con scrollbars
-        tree_frame = tk.Frame(main_frame)
-        tree_frame.grid(row=0, column=0, sticky="nsew")
-        tree_frame.grid_columnconfigure(0, weight=1)
-        tree_frame.grid_rowconfigure(0, weight=1)
+        self.progress_bar = ttk.Progressbar(self.progress_frame, mode='indeterminate')
+        self.progress_bar.pack(fill="x")
+        self.progress_frame.pack_forget()  # Ocultar inicialmente
         
-        # Columnas
-        columns = ("Cupón", "Tienda", "Descuento", "URL", "Fecha")
-        self.tree = ttk.Treeview(
-            tree_frame,
-            columns=columns,
-            show="headings",
-            selectmode="extended"
-        )
+        # ========== BARRA DE FEEDBACK ==========
+        feedback_frame = tk.Frame(main_frame, bg='#D5F4E6', height=40)
+        feedback_frame.pack(fill="x", padx=10, pady=5)
+        
+        tk.Label(feedback_frame, text="¿Este cupón funcionó?", 
+                font=("Arial", 10, "bold"), bg='#D5F4E6').pack(side="left", padx=(10, 15))
+        
+        self.valid_btn = tk.Button(feedback_frame, text="✅ Sí", command=self.mark_as_valid,
+                                  bg='#27AE60', fg='white', state="disabled",
+                                  font=("Arial", 9), relief="flat", padx=15)
+        self.valid_btn.pack(side="left", padx=2)
+        
+        self.invalid_btn = tk.Button(feedback_frame, text="❌ No", command=self.mark_as_invalid,
+                                    bg='#E74C3C', fg='white', state="disabled",
+                                    font=("Arial", 9), relief="flat", padx=15)
+        self.invalid_btn.pack(side="left", padx=2)
+        
+        # ========== LISTA DE CUPONES ==========
+        list_frame = tk.Frame(main_frame, bg=COLORS['light'])
+        list_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        
+        # Treeview
+        columns = ("ID", "Cupón", "Tienda", "Descuento", "URL", "Confianza", "Fecha")
+        self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
         
         # Configurar columnas
-        col_widths = {"Cupón": 150, "Tienda": 120, "Descuento": 80, "URL": 250, "Fecha": 120}
-        for col in columns:
+        col_widths = [0, 150, 120, 80, 200, 80, 120]  # ID oculto
+        for col, width in zip(columns, col_widths):
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=col_widths.get(col, 100), anchor="center")
+            self.tree.column(col, width=width, anchor="center")
         
         # Scrollbars
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        vsb = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(list_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
         
-        # Layout
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
         hsb.grid(row=1, column=0, sticky="ew")
         
+        list_frame.grid_columnconfigure(0, weight=1)
+        list_frame.grid_rowconfigure(0, weight=1)
+        
         # ========== BARRA INFERIOR ==========
-        bottom_frame = tk.Frame(self.root, bg="#ecf0f1")
-        bottom_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=5)
+        bottom_frame = tk.Frame(main_frame, bg=COLORS['dark'])
+        bottom_frame.pack(fill="x", side="bottom", pady=(5, 0))
         
         # Contador
-        self.count_label = tk.Label(
-            bottom_frame,
-            text="0 cupones",
-            font=("Arial", 10, "bold"),
-            bg="#ecf0f1"
-        )
-        self.count_label.pack(side="left")
+        self.count_label = tk.Label(bottom_frame, text="0 cupones", 
+                                   font=("Arial", 10, "bold"), bg=COLORS['dark'], fg="white")
+        self.count_label.pack(side="left", padx=20, pady=8)
         
-        # Info adicional
-        config = self.db.get_config()
-        if config and config[5]:  # último escaneo
-            last_scan = datetime.strptime(config[5], "%Y-%m-%d %H:%M:%S")
-            last_scan_str = last_scan.strftime("%d/%m/%Y %H:%M")
-            scan_label = tk.Label(
-                bottom_frame,
-                text=f"Último escaneo: {last_scan_str}",
-                font=("Arial", 9),
-                bg="#ecf0f1",
-                fg="#7f8c8d"
-            )
-            scan_label.pack(side="right", padx=10)
+        # Estadísticas ML
+        self.stats_label = tk.Label(bottom_frame, text="ML: 0 ejemplos", 
+                                   font=("Arial", 9), bg=COLORS['dark'], fg="#BDC3C7")
+        self.stats_label.pack(side="left", padx=20, pady=8)
         
-        # ========== MENÚ CONTEXTUAL ==========
-        self.context_menu = tk.Menu(self.root, tearoff=0)
-        self.context_menu.add_command(label="Copiar", command=self.copy_selection)
-        self.context_menu.add_command(label="Abrir URL", command=self.open_url)
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Marcar como leído", command=self.mark_as_read)
-        self.context_menu.add_command(label="Eliminar", command=self.delete_selected)
-        
-        # Vincular menú contextual
-        self.tree.bind("<Button-3>", self.show_context_menu)
+        # Eventos
+        self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
         self.tree.bind("<Double-Button-1>", self.show_details)
     
-    def show_context_menu(self, event):
-        """Muestra menú contextual"""
-        item = self.tree.identify_row(event.y)
-        if item:
-            self.tree.selection_set(item)
-            self.context_menu.post(event.x_root, event.y_root)
+    def on_tree_select(self, event):
+        selection = self.tree.selection()
+        if selection:
+            item = self.tree.item(selection[0])
+            self.selected_cupon_id = item['values'][0]
+            self.valid_btn.config(state="normal")
+            self.invalid_btn.config(state="normal")
+        else:
+            self.selected_cupon_id = None
+            self.valid_btn.config(state="disabled")
+            self.invalid_btn.config(state="disabled")
     
-    def check_configuration(self):
-        """Verifica si la configuración está completa"""
-        config = self.db.get_config()
-        if config and not all([config[2], config[3], config[4]]):  # Credenciales
-            response = messagebox.askyesno(
-                "Configuración Requerida",
-                "Faltan las credenciales de Gmail. ¿Desea configurarlas ahora?"
-            )
-            if response:
-                self.open_config()
+    def mark_as_valid(self):
+        if not self.selected_cupon_id:
+            return
+        
+        # Obtener datos del cupón
+        cursor = self.db.conn.cursor()
+        cursor.execute('SELECT cupon, tienda FROM notifications WHERE id = ?', (self.selected_cupon_id,))
+        cupon_data = cursor.fetchone()
+        
+        if cupon_data:
+            cupon_text, tienda = cupon_data
+            
+            # Aprender del feedback
+            self.learning_system.learn_from_feedback(cupon_text, tienda, True)
+            
+            # Actualizar base de datos
+            self.db.update_cupon_validity(self.selected_cupon_id, True, 1.0)
+            self.db.add_user_feedback(self.selected_cupon_id, cupon_text, tienda, True, "Marcado como válido")
+            
+            # Actualizar UI
+            self.load_notifications()
+            self.update_stats_display()
+            
+            # Notificación
+            self.notifier.show_notification("✅ Feedback Registrado", 
+                                          f"'{cupon_text}' marcado como válido")
+            
+            messagebox.showinfo("Éxito", "¡Gracias por tu feedback! El sistema ha aprendido de este ejemplo.")
     
-    def open_config(self):
-        """Abre ventana de configuración"""
-        config_window = tk.Toplevel(self.root)
-        config_window.title("Configuración")
-        config_window.geometry("600x500")
-        config_window.transient(self.root)
-        config_window.grab_set()
+    def mark_as_invalid(self):
+        if not self.selected_cupon_id:
+            return
         
-        # Notebook (pestañas)
-        notebook = ttk.Notebook(config_window)
-        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        cursor = self.db.conn.cursor()
+        cursor.execute('SELECT cupon, tienda FROM notifications WHERE id = ?', (self.selected_cupon_id,))
+        cupon_data = cursor.fetchone()
         
-        # Pestaña 1: General
-        general_frame = ttk.Frame(notebook)
-        notebook.add(general_frame, text="General")
+        if cupon_data:
+            cupon_text, tienda = cupon_data
+            
+            # Aprender del feedback
+            self.learning_system.learn_from_feedback(cupon_text, tienda, False)
+            
+            # Actualizar base de datos
+            self.db.update_cupon_validity(self.selected_cupon_id, False, 0.0)
+            self.db.add_user_feedback(self.selected_cupon_id, cupon_text, tienda, False, "Marcado como inválido")
+            
+            # Actualizar UI
+            self.load_notifications()
+            self.update_stats_display()
+            
+            # Notificación
+            self.notifier.show_notification("❌ Feedback Registrado", 
+                                          f"'{cupon_text}' marcado como inválido")
+            
+            messagebox.showinfo("Éxito", "Feedback registrado. El sistema mejorará sus detecciones.")
+    
+    def update_stats_display(self):
+        stats = self.learning_system.get_stats()
+        self.stats_label.config(text=f"ML: {stats['total_feedback']} ejemplos")
+    
+    def load_notifications(self):
+        # Limpiar treeview
+        for item in self.tree.get_children():
+            self.tree.delete(item)
         
-        # Intervalo de escaneo
-        ttk.Label(general_frame, text="Intervalo de escaneo (minutos):").grid(
-            row=0, column=0, sticky="w", padx=20, pady=10
-        )
+        # Cargar datos
+        notifications = self.db.get_notifications(limit=50)
         
-        config = self.db.get_config()
-        intervalo_var = tk.StringVar(value=str(config[1] if config else 30))
-        intervalo_spin = ttk.Spinbox(
-            general_frame,
-            from_=1,
-            to=1440,
-            textvariable=intervalo_var,
-            width=10
-        )
-        intervalo_spin.grid(row=0, column=1, padx=20, pady=10)
+        for notif in notifications:
+            cupon_id, cupon, tienda, url, descuento, estado, usuario_valido, es_valido, confianza, fecha = notif
+            
+            # Formatear fecha
+            if isinstance(fecha, str):
+                try:
+                    fecha_dt = datetime.strptime(fecha, "%Y-%m-%d %H:%M:%S")
+                    fecha_str = fecha_dt.strftime("%d/%m %H:%M")
+                except:
+                    fecha_str = fecha
+            else:
+                fecha_str = str(fecha)
+            
+            # Formatear confianza
+            conf_str = f"{confianza:.0%}"
+            
+            # Insertar en treeview
+            self.tree.insert("", "end", values=(
+                cupon_id, cupon, tienda, descuento or "", url, conf_str, fecha_str
+            ))
         
-        # Pestaña 2: Gmail API
-        gmail_frame = ttk.Frame(notebook)
-        notebook.add(gmail_frame, text="Gmail API")
+        # Actualizar contador
+        count = len(notifications)
+        self.count_label.config(text=f"{count} cupones encontrados")
         
-        # Información
-        info_text = """
-        Para configurar la API de Gmail:
+        # Actualizar estadísticas
+        self.update_stats_display()
+    
+    def show_stats(self):
+        stats = self.learning_system.get_stats()
+        patterns = self.db.get_top_patterns(5)
         
-        1. Usa las credenciales que ya tienes:
-           - Client ID: 1001519020081-igeh7pqvvkp0unetgnks4o8na4jir7o6.apps.googleusercontent.com
-           - Client Secret: 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
+        stats_window = tk.Toplevel(self.root)
+        stats_window.title("📊 Estadísticas del Sistema")
+        stats_window.geometry("500x400")
         
-        2. Haz clic en "Obtener Refresh Token" para autorizar la aplicación.
+        # Mostrar estadísticas
+        info_text = f"""
+        📈 **Estadísticas de Aprendizaje:**
         
-        3. Los tokens se guardarán automáticamente.
+        Total de feedback: {stats['total_feedback']}
+        Feedback válido: {stats['valid_feedback']}
+        Tiendas aprendidas: {stats['stores_learned']}
+        Patrones almacenados: {stats['total_patterns']}
+        Confianza promedio: {stats['avg_confidence']:.1%}
+        
+        🔍 **Patrones más confiables:**
         """
         
-        info_label = tk.Label(
-            gmail_frame,
-            text=info_text,
-            justify="left",
-            font=("Arial", 10)
-        )
-        info_label.pack(padx=20, pady=10, fill="both")
+        text_widget = scrolledtext.ScrolledText(stats_window, wrap=tk.WORD, font=("Arial", 10))
+        text_widget.pack(fill="both", expand=True, padx=10, pady=10)
+        text_widget.insert("1.0", info_text)
         
-        # Botón para obtener token
-        def obtener_token():
-            try:
-                tokens = GmailAuthenticator.obtener_tokens_interactivo()
-                if tokens:
-                    self.db.update_config(
-                        client_id=tokens['client_id'],
-                        client_secret=tokens['client_secret'],
-                        refresh_token=tokens['refresh_token']
-                    )
-                    messagebox.showinfo("Éxito", "Tokens guardados correctamente")
-                    config_window.destroy()
-            except Exception as e:
-                messagebox.showerror("Error", f"No se pudo obtener token: {e}")
+        if patterns:
+            for tienda, patron, confianza, total in patterns:
+                text_widget.insert(tk.END, 
+                    f"\n• {tienda}: {patron} ({confianza:.0%} en {total} ejemplos)")
+        else:
+            text_widget.insert(tk.END, "\n\nAún no hay patrones aprendidos.")
         
-        token_btn = ttk.Button(
-            gmail_frame,
-            text="🔄 Obtener Refresh Token",
-            command=obtener_token
-        )
-        token_btn.pack(pady=20)
+        text_widget.config(state="disabled")
         
-        # Mostrar tokens actuales (enmascarados)
-        if config and config[2]:
-            current_frame = ttk.LabelFrame(gmail_frame, text="Configuración Actual")
-            current_frame.pack(fill="x", padx=20, pady=10)
-            
-            ttk.Label(current_frame, text="Client ID:").grid(row=0, column=0, sticky="w", padx=10, pady=5)
-            ttk.Label(current_frame, text=config[2][:20] + "..." if len(config[2]) > 20 else config[2]).grid(
-                row=0, column=1, sticky="w", padx=10, pady=5
-            )
-            
-            ttk.Label(current_frame, text="Token configurado: Sí").grid(
-                row=1, column=0, columnspan=2, padx=10, pady=5
-            )
-        
-        # Botones de acción
-        button_frame = ttk.Frame(config_window)
-        button_frame.pack(fill="x", padx=20, pady=10)
-        
-        def guardar_config():
-            try:
-                intervalo = int(intervalo_var.get())
-                if intervalo < 1:
-                    raise ValueError("El intervalo debe ser mayor a 0")
-                
-                self.db.update_config(intervalo_minutos=intervalo)
-                messagebox.showinfo("Éxito", "Configuración guardada")
-                config_window.destroy()
-                
-                # Reiniciar escaneo automático
-                self.stop_auto_scan()
-                self.start_auto_scan()
-                
-            except ValueError as e:
-                messagebox.showerror("Error", f"Valor inválido: {e}")
-        
-        ttk.Button(button_frame, text="Guardar", command=guardar_config).pack(side="right", padx=5)
-        ttk.Button(button_frame, text="Cancelar", command=config_window.destroy).pack(side="right", padx=5)
+        tk.Button(stats_window, text="Cerrar", command=stats_window.destroy).pack(pady=10)
     
     def start_scan(self):
-        """Inicia escaneo manual"""
         if self.scanning:
             messagebox.showwarning("Escaneo en curso", "Ya hay un escaneo en progreso")
             return
         
         self.scanning = True
-        self.status_label.config(text="🔍 Escaneando correos...", fg="#e74c3c")
+        self.progress_frame.pack(fill="x", padx=10, pady=5)
+        self.progress_bar.start()
         
-        # Ejecutar en hilo separado
         thread = threading.Thread(target=self.perform_scan, daemon=True)
         thread.start()
     
     def perform_scan(self):
-        """Ejecuta el escaneo"""
         try:
-            coupons, message = self.processor.scan_emails(max_emails=15)
+            coupons, message = self.processor.scan_emails()
             self.queue.put(("scan_complete", coupons, message))
         except Exception as e:
+            logger.error(f"Error en escaneo: {traceback.format_exc()}")
             self.queue.put(("error", str(e)))
     
-    def start_auto_scan(self):
-        """Inicia escaneo automático"""
-        config = self.db.get_config()
-        if config:
-            intervalo = config[1]  # minutos
-            intervalo_ms = intervalo * 60 * 1000  # convertir a milisegundos
-            
-            self.auto_scan_id = self.root.after(intervalo_ms, self.auto_scan)
-    
-    def stop_auto_scan(self):
-        """Detiene el escaneo automático"""
-        if self.auto_scan_id:
-            self.root.after_cancel(self.auto_scan_id)
-            self.auto_scan_id = None
-    
-    def auto_scan(self):
-        """Ejecuta escaneo automático"""
-        if not self.scanning:
-            self.start_scan()
-        self.start_auto_scan()
-    
     def check_queue(self):
-        """Verifica la queue para actualizaciones"""
         try:
             while True:
                 msg_type, *args = self.queue.get_nowait()
@@ -857,130 +1295,47 @@ class CouponNotifierApp:
                 if msg_type == "scan_complete":
                     coupons, message = args
                     self.scanning = False
+                    self.progress_bar.stop()
+                    self.progress_frame.pack_forget()
                     
-                    # Actualizar estado
-                    self.status_label.config(text=message, fg="#27ae60")
-                    
-                    # Recargar notificaciones
                     self.load_notifications()
                     
-                    # Mostrar notificación si se encontraron cupones
                     if coupons:
-                        self.show_scan_results(coupons)
+                        self.notifier.notify_new_coupons(len(coupons), coupons)
+                        messagebox.showinfo("Escaneo Completado", message)
+                    else:
+                        messagebox.showinfo("Escaneo Completado", "No se encontraron cupones nuevos")
                 
                 elif msg_type == "error":
                     error_msg = args[0]
                     self.scanning = False
-                    self.status_label.config(text=f"Error: {error_msg}", fg="#c0392b")
+                    self.progress_bar.stop()
+                    self.progress_frame.pack_forget()
+                    
+                    messagebox.showerror("Error", f"Error en escaneo: {error_msg}")
                     
         except queue.Empty:
             pass
         
-        # Verificar de nuevo
         self.root.after(100, self.check_queue)
     
-    def show_scan_results(self, coupons):
-        """Muestra resultados del escaneo"""
-        if not coupons:
-            return
-        
-        result_text = f"🎉 Se encontraron {len(coupons)} cupones nuevos:\n\n"
-        
-        for coupon in coupons:
-            result_text += f"• {coupon['codigo']} - {coupon['tienda']}"
-            if coupon['descuento']:
-                result_text += f" ({coupon['descuento']})"
-            result_text += "\n"
-        
-        # Ventana de resultados
-        result_window = tk.Toplevel(self.root)
-        result_window.title("Nuevos Cupones Encontrados")
-        result_window.geometry("500x300")
-        
-        text_widget = scrolledtext.ScrolledText(
-            result_window,
-            wrap=tk.WORD,
-            font=("Arial", 10)
-        )
-        text_widget.pack(fill="both", expand=True, padx=10, pady=10)
-        text_widget.insert("1.0", result_text)
-        text_widget.config(state="disabled")
-        
-        ttk.Button(
-            result_window,
-            text="Cerrar",
-            command=result_window.destroy
-        ).pack(pady=10)
-    
-    def load_notifications(self):
-        """Carga notificaciones en el treeview"""
-        # Limpiar treeview
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        # Obtener notificaciones
-        notifications = self.db.get_notifications(limit=100)
-        
-        # Insertar en treeview
-        for notif in notifications:
-            # Formatear fecha
-            fecha = notif[4]
-            if isinstance(fecha, str):
-                try:
-                    fecha_dt = datetime.strptime(fecha, "%Y-%m-%d %H:%M:%S")
-                    fecha_str = fecha_dt.strftime("%d/%m/%Y %H:%M")
-                except:
-                    fecha_str = fecha
-            else:
-                fecha_str = str(fecha)
-            
-            self.tree.insert("", "end", values=(
-                notif[0],  # cupon
-                notif[1],  # tienda
-                notif[3] or "",  # descuento
-                notif[2],  # URL
-                fecha_str  # fecha formateada
-            ))
-        
-        # Actualizar contador
-        self.count_label.config(text=f"{len(notifications)} cupones encontrados")
-    
     def copy_selection(self):
-        """Copia la selección al portapapeles"""
         selection = self.tree.selection()
         if not selection:
-            messagebox.showwarning("Sin selección", "Seleccione un cupón para copiar")
             return
         
-        text_to_copy = []
+        texts = []
         for item in selection:
             values = self.tree.item(item, "values")
             if values:
-                cupon = values[0]
-                text_to_copy.append(cupon)
+                texts.append(values[1])  # Código del cupón
         
-        if text_to_copy:
+        if texts:
             self.root.clipboard_clear()
-            self.root.clipboard_append("\n".join(text_to_copy))
-            messagebox.showinfo("Copiado", f"Se copiaron {len(text_to_copy)} cupones")
+            self.root.clipboard_append("\n".join(texts))
+            messagebox.showinfo("Copiado", f"{len(texts)} cupones copiados")
     
-    def open_url(self):
-        """Abre la URL en el navegador"""
-        selection = self.tree.selection()
-        if not selection:
-            messagebox.showwarning("Sin selección", "Seleccione un cupón para abrir su URL")
-            return
-        
-        item = self.tree.item(selection[0])
-        url = item['values'][3]  # URL está en la columna 3
-        
-        if url and (url.startswith('http://') or url.startswith('https://')):
-            webbrowser.open(url)
-        else:
-            messagebox.showwarning("URL inválida", "La URL no es válida")
-    
-    def show_details(self, event=None):
-        """Muestra detalles del cupón seleccionado"""
+    def show_details(self, event):
         selection = self.tree.selection()
         if not selection:
             return
@@ -989,47 +1344,88 @@ class CouponNotifierApp:
         values = item['values']
         
         details = f"""
-        📋 Detalles del Cupón:
-        
-        Código: {values[0]}
-        Tienda: {values[1]}
-        Descuento: {values[2] if values[2] else 'No especificado'}
-        URL: {values[3] if values[3] else 'No disponible'}
-        Fecha: {values[4]}
+        🎫 Código: {values[1]}
+        🏪 Tienda: {values[2]}
+        💰 Descuento: {values[3] if values[3] else "No especificado"}
+        🔗 URL: {values[4] if values[4] else "No disponible"}
+        📊 Confianza: {values[5]}
+        📅 Fecha: {values[6]}
         """
         
-        messagebox.showinfo("Detalles", details)
-    
-    def mark_as_read(self):
-        """Marca los seleccionados como leídos"""
-        selection = self.tree.selection()
-        if selection:
-            for item in selection:
-                # Aquí implementarías la lógica para marcar como leído en BD
-                pass
-            messagebox.showinfo("Éxito", f"Se marcaron {len(selection)} cupones como leídos")
-    
-    def delete_selected(self):
-        """Elimina los cupones seleccionados"""
-        selection = self.tree.selection()
-        if not selection:
-            return
-        
-        if messagebox.askyesno("Confirmar", f"¿Eliminar {len(selection)} cupones?"):
-            for item in selection:
-                self.tree.delete(item)
-            # Aquí implementarías la eliminación de la BD
+        messagebox.showinfo("Detalles del Cupón", details)
     
     def clear_all(self):
-        """Limpia todas las notificaciones"""
-        if messagebox.askyesno("Confirmar", "¿Eliminar TODOS los cupones?"):
-            self.db.clear_notifications()
+        if messagebox.askyesno("Confirmar", "¿Eliminar todos los cupones?"):
+            cursor = self.db.conn.cursor()
+            cursor.execute("DELETE FROM notifications")
+            self.db.conn.commit()
             self.load_notifications()
             messagebox.showinfo("Éxito", "Todos los cupones han sido eliminados")
     
+    def open_config(self):
+        config_window = tk.Toplevel(self.root)
+        config_window.title("Configuración")
+        config_window.geometry("500x400")
+        
+        # Pestañas simples
+        notebook = ttk.Notebook(config_window)
+        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Pestaña General
+        general_frame = ttk.Frame(notebook)
+        notebook.add(general_frame, text="General")
+        
+        config = self.db.get_config()
+        
+        tk.Label(general_frame, text="Intervalo (minutos):").grid(row=0, column=0, sticky="w", padx=10, pady=10)
+        intervalo_var = tk.StringVar(value=str(config[1] if config else 30))
+        tk.Entry(general_frame, textvariable=intervalo_var, width=10).grid(row=0, column=1, padx=10, pady=10)
+        
+        # Pestaña Gmail
+        gmail_frame = ttk.Frame(notebook)
+        notebook.add(gmail_frame, text="Gmail")
+        
+        tk.Label(gmail_frame, text="Configura Gmail API:", font=("Arial", 11, "bold")).pack(pady=10)
+        
+        def setup_gmail():
+            try:
+                tokens = GmailAuthenticator.obtener_tokens_interactivo()
+                if tokens:
+                    self.db.update_config(
+                        client_id=tokens['client_id'],
+                        client_secret=tokens['client_secret'],
+                        refresh_token=tokens['refresh_token']
+                    )
+                    messagebox.showinfo("Éxito", "Configuración de Gmail guardada")
+                    config_window.destroy()
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo configurar Gmail: {e}")
+        
+        tk.Button(gmail_frame, text="Configurar Gmail API", command=setup_gmail).pack(pady=20)
+        
+        # Botones
+        btn_frame = tk.Frame(config_window)
+        btn_frame.pack(fill="x", padx=20, pady=10)
+        
+        def save_config():
+            try:
+                intervalo = int(intervalo_var.get())
+                self.db.update_config(intervalo_minutos=intervalo)
+                messagebox.showinfo("Éxito", "Configuración guardada")
+                config_window.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Intervalo debe ser un número")
+        
+        tk.Button(btn_frame, text="Guardar", command=save_config).pack(side="right", padx=5)
+        tk.Button(btn_frame, text="Cancelar", command=config_window.destroy).pack(side="right", padx=5)
+    
+    def check_configuration(self):
+        config = self.db.get_config()
+        if config and not all([config[2], config[3], config[4]]):
+            if messagebox.askyesno("Configuración", "Falta configuración de Gmail. ¿Configurar ahora?"):
+                self.open_config()
+    
     def on_closing(self):
-        """Maneja el cierre de la aplicación"""
-        self.stop_auto_scan()
         self.db.close()
         self.root.destroy()
 
@@ -1037,25 +1433,24 @@ class CouponNotifierApp:
 # EJECUCIÓN PRINCIPAL
 # ==============================================
 if __name__ == "__main__":
-    # Verificar dependencias
     try:
-        import google.auth
-    except ImportError:
-        print("Instala las dependencias necesarias:")
-        print("pip install google-auth google-auth-oauthlib google-auth-httplib2")
-        print("pip install google-api-python-client")
-        print("pip install pillow pytesseract opencv-python numpy")
-        exit(1)
-    
-    # Crear y ejecutar aplicación
-    root = tk.Tk()
-    app = CouponNotifierApp(root)
-    
-    # Configurar cierre
-    root.protocol("WM_DELETE_WINDOW", app.on_closing)
-    
-    # Iniciar escaneo automático
-    app.start_auto_scan()
-    
-    # Ejecutar
-    root.mainloop()
+        # Verificar dependencias esenciales
+        try:
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+        except ImportError:
+            print("Instala las dependencias de Gmail:")
+            print("pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
+            print("pip install pillow pytesseract opencv-python numpy")
+            exit(1)
+        
+        root = tk.Tk()
+        app = CouponNotifierApp(root)
+        
+        root.protocol("WM_DELETE_WINDOW", app.on_closing)
+        root.mainloop()
+        
+    except Exception as e:
+        logger.critical(f"Error fatal: {traceback.format_exc()}")
+        messagebox.showerror("Error", f"Error crítico: {str(e)}")
+        raise
