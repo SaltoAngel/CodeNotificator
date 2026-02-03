@@ -63,7 +63,11 @@ class DatabaseManager:
             ('search_query', 'TEXT'),
             ('search_keywords', 'TEXT'),
             ('max_emails', 'INTEGER'),
-            ('user_email', 'TEXT')
+            ('user_email', 'TEXT'),
+            ('key_valid', 'TEXT'),
+            ('key_discard', 'TEXT'),
+            ('key_expired', 'TEXT'),
+            ('key_scan', 'TEXT')
         ]
 
         # Verificar y agregar columnas en notifications si no existen
@@ -106,6 +110,11 @@ class DatabaseManager:
             "UPDATE config SET max_emails = ? WHERE id = 1 AND (max_emails IS NULL OR max_emails < 1)",
             (DEFAULT_MAX_EMAILS,)
         )
+        
+        # Atajos por defecto si no existen
+        defaults = [('key_valid', 'v'), ('key_discard', 'x'), ('key_expired', 'e'), ('key_scan', 's')]
+        for col, val in defaults:
+            cursor.execute(f"UPDATE config SET {col} = ? WHERE id = 1 AND ({col} IS NULL OR {col} = '')", (val,))
 
         # Tabla de aprendizaje simplificada (sin ML)
         cursor.execute('''
@@ -171,9 +180,13 @@ class DatabaseManager:
         logger.info("Tablas de base de datos creadas/verificadas")
 
     def get_config(self):
+        orig_factory = self.conn.row_factory
+        self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM config WHERE id = 1")
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        self.conn.row_factory = orig_factory
+        return dict(row) if row else None
 
     def update_config(self, **kwargs):
         if not kwargs:
@@ -237,7 +250,10 @@ class DatabaseManager:
         return cursor.fetchone() is not None
 
     def get_notifications(self, limit=100, estado=None, min_confidence=None, days=None, tienda=None, usuario_valido=None, es_valido=None):
-        query = "SELECT id, cupon, tienda, asunto, URL, descuento, estado, usuario_valido, es_valido, confianza, Fecha, fecha_expiracion FROM notifications"
+        orig_factory = self.conn.row_factory
+        self.conn.row_factory = sqlite3.Row
+        
+        query = "SELECT * FROM notifications" # Simplificamos para obtener todo y acceder por nombre
         params = []
 
         where_clauses = []
@@ -274,7 +290,11 @@ class DatabaseManager:
 
         cursor = self.conn.cursor()
         cursor.execute(query, params)
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+        
+        # Restaurar factory y convertir a dicts
+        self.conn.row_factory = orig_factory
+        return [dict(r) for r in rows]
 
     def get_notification_by_id(self, cupon_id):
         cursor = self.conn.cursor()
@@ -320,16 +340,23 @@ class DatabaseManager:
                 return DEFAULT_MAX_EMAILS
         return DEFAULT_MAX_EMAILS
 
-    def update_cupon_validity(self, cupon_id, es_valido, confianza=1.0):
+    def update_cupon_validity(self, cupon_id, es_valido, confianza=1.0, estado=None):
         cursor = self.conn.cursor()
-        cursor.execute(
-            "UPDATE notifications SET es_valido = ?, usuario_valido = 1, confianza = ? WHERE id = ?",
-            (1 if es_valido else 0, confianza, cupon_id)
-        )
+        if estado:
+            cursor.execute(
+                "UPDATE notifications SET es_valido = ?, usuario_valido = 1, confianza = ?, estado = ? WHERE id = ?",
+                (1 if es_valido else 0, confianza, estado, cupon_id)
+            )
+        else:
+            cursor.execute(
+                "UPDATE notifications SET es_valido = ?, usuario_valido = 1, confianza = ? WHERE id = ?",
+                (1 if es_valido else 0, confianza, cupon_id)
+            )
         self.conn.commit()
-        logger.info(f"Cupón {cupon_id} marcado como {'válido' if es_valido else 'inválido'}")
+        logger.info(f"Cupón {cupon_id} actualizado (es_valido={es_valido}, estado={estado})")
 
     def update_cupon_full(self, cupon_id, cupon, tienda, descuento, es_valido=1, confianza=1.0):
+        logger.info(f"Intentando actualizar cupón ID: {cupon_id} a usuario_valido=1")
         cursor = self.conn.cursor()
         cursor.execute('''
             UPDATE notifications 
@@ -337,7 +364,9 @@ class DatabaseManager:
             WHERE id = ?
         ''', (cupon, tienda, descuento, es_valido, confianza, cupon_id))
         self.conn.commit()
-        logger.info(f"Cupón {cupon_id} actualizado con datos corregidos.")
+        rows_affected = cursor.rowcount
+        logger.info(f"Cupón {cupon_id} actualizado. Filas afectadas: {rows_affected}")
+        return rows_affected > 0
 
     def add_user_feedback(self, cupon_id, cupon_text, tienda, es_valido, comentario=""):
         cursor = self.conn.cursor()

@@ -183,10 +183,14 @@ class CouponNotifierApp:
                                        fg_color="#27AE60", width=140, state="disabled")
         self.valid_btn.pack(side="left", padx=10)
 
-        self.invalid_btn = ctk.CTkButton(self.feedback_frame, text="❌ NO FUNCIONA", command=self.mark_as_invalid,
-                                         fg_color="#C0392B", width=140, state="disabled")
+        self.invalid_btn = ctk.CTkButton(self.feedback_frame, text="❌ DESCARTAR", command=self.mark_as_invalid,
+                                         fg_color="#C0392B", width=120, state="disabled")
         self.invalid_btn.pack(side="left", padx=10)
 
+        self.expired_btn = ctk.CTkButton(self.feedback_frame, text="🕒 EXPIRADO", command=self.mark_as_expired,
+                                         fg_color="#7f8c8d", width=120, state="disabled")
+        self.expired_btn.pack(side="left", padx=10)
+        
         # Acciones rápidas a la derecha
         self.btn_copy = ctk.CTkButton(self.feedback_frame, text="📋 COPIAR", command=self.copy_selection, width=100)
         self.btn_copy.pack(side="right", padx=10)
@@ -229,8 +233,9 @@ class CouponNotifierApp:
         self.context_menu.add_command(label="📋 Copiar Código", command=self.copy_selected_code)
         self.context_menu.add_command(label="📧 Ver Correo Original", command=self.open_selected_email)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="🚩 Marcar como Falso Positivo", command=self.add_false_positive_from_selection)
-        self.context_menu.add_command(label="✅ Marcar como Confirmado", command=self.add_positive_coupon_from_selection)
+        self.context_menu.add_command(label="✅ SÍ / CORREGIR", command=self.mark_as_valid)
+        self.context_menu.add_command(label="❌ DESCARTAR / BASURA", command=self.mark_as_invalid)
+        self.context_menu.add_command(label="🕒 EXPIRADO", command=self.mark_as_expired)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="🗑️ Eliminar", command=self.delete_selected_coupon)
 
@@ -318,10 +323,12 @@ class CouponNotifierApp:
             self.selected_cupon_id = int(selection[0])
             self.valid_btn.configure(state="normal")
             self.invalid_btn.configure(state="normal")
+            self.expired_btn.configure(state="normal")
         else:
             self.selected_cupon_id = None
             self.valid_btn.configure(state="disabled")
             self.invalid_btn.configure(state="disabled")
+            self.expired_btn.configure(state="disabled")
 
     def on_tree_right_click(self, event):
         tree = event.widget
@@ -342,7 +349,10 @@ class CouponNotifierApp:
         filter_type = self.filter_var.get()
         days = 7 if filter_type == "Recientes (7 días)" else None
         min_conf = 0.8 if filter_type == "Alta confianza (>=80%)" else None
-        store = self.store_filter_var.get().strip() if filter_type == "Por tienda" else None
+        
+        # El cuadro de búsqueda siempre debe filtrar si tiene texto
+        search_query = self.store_filter_var.get().strip()
+        store = search_query if search_query else None
 
         pending = self.db.get_notifications(limit=200, min_confidence=min_conf, days=days, tienda=store, usuario_valido=False)
         validated = self.db.get_notifications(limit=200, min_confidence=min_conf, days=days, tienda=store, usuario_valido=True, es_valido=True)
@@ -358,8 +368,19 @@ class CouponNotifierApp:
 
     def _fill_tree(self, tree, rows):
         for idx, row in enumerate(rows, 1):
-            # id, cupon, tienda, asunto, URL, descuento, estado, usr_val, is_val, conf, date, expira
-            cupon_id, code, tienda, subject, url, desc, status, usr_val, is_val, conf, date, expira = row
+            # Acceso por nombre de columna (row ya es un dict desde db_manager)
+            cupon_id = row['id']
+            code = row['cupon']
+            tienda = row['tienda']
+            subject = row.get('asunto', "")
+            url = row['URL']
+            desc = row.get('descuento', "")
+            status = row.get('estado', "")
+            usr_val = row.get('usuario_valido', 0)
+            is_val = row.get('es_valido', 0)
+            conf = row.get('confianza', 0.5)
+            date = row.get('Fecha', "")
+            expira = row.get('fecha_expiracion', "")
             
             tag = "conf_mid"
             if self.db.is_false_positive_term(code) or (usr_val and not is_val) or status == 'expirado':
@@ -370,29 +391,41 @@ class CouponNotifierApp:
             elif conf < 0.5: tag = "conf_low"
 
             tree.insert("", "end", iid=str(cupon_id), values=(
-                idx, code, tienda, subject or "", desc or "", url, f"{conf:.0%}", date, expira or "---"
+                idx, code, tienda, subject, desc, url, f"{conf:.0%}", date, expira or "---"
             ), tags=(tag,))
 
     def bind_hotkeys(self):
-        """Vincula teclas de acceso rápido para acciones frecuentes."""
-        self.root.bind("<Key-v>", lambda e: self.mark_as_valid())
-        self.root.bind("<Key-V>", lambda e: self.mark_as_valid())
-        self.root.bind("<Key-x>", lambda e: self.mark_as_invalid())
-        self.root.bind("<Key-X>", lambda e: self.mark_as_invalid())
-        self.root.bind("<Delete>", lambda e: self.mark_as_invalid())
-        self.root.bind("<Key-f>", lambda e: self.add_false_positive_from_selection())
-        self.root.bind("<Key-F>", lambda e: self.add_false_positive_from_selection())
-        self.root.bind("<Key-c>", lambda e: self.copy_selection())
-        self.root.bind("<Key-C>", lambda e: self.copy_selection())
-        self.root.bind("<Key-s>", lambda e: self.start_scan())
-        self.root.bind("<Key-S>", lambda e: self.start_scan())
-        self.root.bind("<Return>", lambda e: self.show_details(e))
+        """Vincula teclas de acceso rápido para acciones frecuentes desde la configuración."""
+        try:
+            config = self.db.get_config()
+            k_valid = config.get('key_valid', 'v').lower()
+            k_discard = config.get('key_discard', 'x').lower()
+            k_expired = config.get('key_expired', 'e').lower()
+            k_scan = config.get('key_scan', 's').lower()
 
-        # Hotkeys de Navegación de Pestañas
-        self.root.bind("<Control-Key-1>", lambda e: self.change_tab("Pendientes"))
-        self.root.bind("<Control-Key-2>", lambda e: self.change_tab("Validados"))
-        self.root.bind("<Control-Key-3>", lambda e: self.change_tab("Falsos Positivos"))
-        self.root.bind("<Control-Key-4>", lambda e: self.change_tab("📊 Dashboard"))
+            # Desvincular teclas anteriores para evitar duplicados si se llama varias veces (aunque tkinter suele sobrescribir)
+            self.root.bind(f"<Key-{k_valid}>", lambda e: self.mark_as_valid())
+            self.root.bind(f"<Key-{k_valid.upper()}>", lambda e: self.mark_as_valid())
+            self.root.bind(f"<Key-{k_discard}>", lambda e: self.mark_as_invalid())
+            self.root.bind(f"<Key-{k_discard.upper()}>", lambda e: self.mark_as_invalid())
+            self.root.bind("<Delete>", lambda e: self.mark_as_invalid())
+            self.root.bind(f"<Key-{k_expired}>", lambda e: self.mark_as_expired())
+            self.root.bind(f"<Key-{k_expired.upper()}>", lambda e: self.mark_as_expired())
+            self.root.bind(f"<Key-{k_scan}>", lambda e: self.start_scan())
+            self.root.bind(f"<Key-{k_scan.upper()}>", lambda e: self.start_scan())
+            
+            # Hotkeys fijas (no configurables por ahora para evitar conflictos de navegación)
+            self.root.bind("<Key-c>", lambda e: self.copy_selection())
+            self.root.bind("<Key-C>", lambda e: self.copy_selection())
+            self.root.bind("<Return>", lambda e: self.show_details(e))
+
+            # Hotkeys de Navegación de Pestañas
+            self.root.bind("<Control-Key-1>", lambda e: self.change_tab("Pendientes"))
+            self.root.bind("<Control-Key-2>", lambda e: self.change_tab("Validados"))
+            self.root.bind("<Control-Key-3>", lambda e: self.change_tab("Falsos Positivos"))
+            self.root.bind("<Control-Key-4>", lambda e: self.change_tab("📊 Dashboard"))
+        except Exception as e:
+            logger.error(f"Error vinculando hotkeys: {e}")
 
     def change_tab(self, name):
         """Cambia de pestaña por nombre y gestiona el foco."""
@@ -477,19 +510,20 @@ class CouponNotifierApp:
         
         t_gen = tabs.add("General")
         t_gmail = tabs.add("Gmail API")
+        t_keys = tabs.add("Atajos")
 
         # General Tab
         config = self.db.get_config()
         
         # Intervalo
         ctk.CTkLabel(t_gen, text="Intervalo de escaneo automático:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
-        interval_var = ctk.StringVar(value=str(config[1] if config else 30))
+        interval_var = ctk.StringVar(value=str(config.get('intervalo_minutos', 30)))
         ctk.CTkEntry(t_gen, textvariable=interval_var, width=150).pack(pady=5)
         ctk.CTkLabel(t_gen, text="minutos", font=ctk.CTkFont(size=12)).pack(pady=(0, 15))
         
         # Límite de Correos
         ctk.CTkLabel(t_gen, text="Límite de correos por escaneo:", font=ctk.CTkFont(weight="bold")).pack(pady=5)
-        limit_var = ctk.StringVar(value=str(config[8] if config and len(config) > 8 else 50))
+        limit_var = ctk.StringVar(value=str(config.get('max_emails', 50)))
         ctk.CTkEntry(t_gen, textvariable=limit_var, width=150).pack(pady=5)
         ctk.CTkLabel(t_gen, text="Cantidad de emails a revisar", font=ctk.CTkFont(size=11), text_color="gray").pack()
 
@@ -506,11 +540,31 @@ class CouponNotifierApp:
 
         # Gmail Tab
         ctk.CTkLabel(t_gmail, text="Estado de Conexión", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=20)
-        email = config[9] if config and len(config) > 9 else "No conectado"
+        email = config.get('user_email', "No conectado")
         status_color = "#2ECC71" if email != "No conectado" else "#E74C3C"
         
         ctk.CTkLabel(t_gmail, text=f"📧 {email}", text_color=status_color).pack(pady=10)
         
+        # Atajos Tab
+        ctk.CTkLabel(t_keys, text="Configurar Atajos de Teclado", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=20)
+        
+        def create_key_entry(parent, label, default_val):
+            f = ctk.CTkFrame(parent, fg_color="transparent")
+            f.pack(fill="x", padx=40, pady=5)
+            ctk.CTkLabel(f, text=label, width=150, anchor="w").pack(side="left")
+            var = ctk.StringVar(value=default_val)
+            entry = ctk.CTkEntry(f, textvariable=var, width=50, justify="center")
+            entry.pack(side="right")
+            return var
+
+        k_valid_var = create_key_entry(t_keys, "Si / Corregir:", config.get('key_valid', 'v'))
+        k_discard_var = create_key_entry(t_keys, "Descartar / Basura:", config.get('key_discard', 'x'))
+        k_expired_var = create_key_entry(t_keys, "Cupón Expirado:", config.get('key_expired', 'e'))
+        k_scan_var = create_key_entry(t_keys, "Iniciar Escaneo:", config.get('key_scan', 's'))
+        
+        ctk.CTkLabel(t_keys, text="Nota: Introduce solo una letra (ej: 'v', 'x', 'e').", 
+                      font=ctk.CTkFont(size=11), text_color="gray").pack(pady=10)
+
         def run_auth():
             try:
                 from core.gmail_engine import GmailAuthenticator
@@ -526,11 +580,25 @@ class CouponNotifierApp:
 
         def save():
             try:
+                # Validar que los atajos tengan solo 1 carácter
+                keys = [k_valid_var.get(), k_discard_var.get(), k_expired_var.get(), k_scan_var.get()]
+                if any(len(k.strip()) != 1 for k in keys):
+                    messagebox.showerror("Error", "Cada atajo debe ser una única letra.")
+                    return
+
                 self.db.update_config(
                     intervalo_minutos=int(interval_var.get()),
-                    max_emails=int(limit_var.get())
+                    max_emails=int(limit_var.get()),
+                    key_valid=k_valid_var.get().strip().lower(),
+                    key_discard=k_discard_var.get().strip().lower(),
+                    key_expired=k_expired_var.get().strip().lower(),
+                    key_scan=k_scan_var.get().strip().lower()
                 )
-                messagebox.showinfo("Éxito", "Configuración guardada.")
+                
+                # Re-vincular hotkeys inmediatamente
+                self.bind_hotkeys()
+                
+                messagebox.showinfo("Éxito", "Configuración y atajos guardados.")
                 win.destroy()
             except ValueError:
                 messagebox.showerror("Error", "Los valores deben ser numéricos.")
@@ -675,16 +743,6 @@ class CouponNotifierApp:
         
         ctk.CTkButton(dialog, text="Cancelar", command=dialog.destroy, fg_color="transparent").pack()
 
-    def mark_as_invalid(self):
-        if self.selected_cupon_id:
-            cupon_data = self.db.get_notification_by_id(self.selected_cupon_id)
-            if cupon_data:
-                # Índice 6 es contexto en SELECT * de notifications
-                self.learning_system.learn_from_feedback(cupon_data[1], cupon_data[2], False, contexto=cupon_data[6])
-                self.db.update_cupon_validity(self.selected_cupon_id, False, 0.0)
-                self.load_notifications()
-                self.show_toast("Falso positivo registrado. 🚫", color="#E67E22")
-
     def copy_and_open_selected(self):
         tree = self.current_tree or self.trees["pending"]
         sel = tree.selection()
@@ -713,7 +771,7 @@ class CouponNotifierApp:
     
     def check_configuration(self):
         config = self.db.get_config()
-        if config and not all([config[2], config[3], config[4]]):
+        if config and not all([config.get('client_id'), config.get('client_secret'), config.get('refresh_token')]):
             if messagebox.askyesno("Configuración", "Falta configuración de Gmail. ¿Configurar ahora?"):
                 self.open_config()
 
@@ -721,28 +779,6 @@ class CouponNotifierApp:
         if self.selected_cupon_id:
             id_gmail = self.db.obtener_id_gmail_por_db(self.selected_cupon_id)
             if id_gmail: webbrowser.open(f"https://mail.google.com/mail/u/0/#inbox/{id_gmail}")
-
-    def add_false_positive_from_selection(self):
-        tree = self.current_tree or self.trees["pending"]
-        sel = tree.selection()
-        if sel:
-            code = tree.item(sel[0], "values")[1]
-            self.db.add_false_positive_term(code)
-            # También marcar la notificación actual como inválida
-            self.db.update_cupon_validity(int(sel[0]), False, 0.0)
-            self.load_notifications()
-            self.show_toast(f"'{code}' bloqueado globalmente. 🛑", color="#E74C3C")
-
-    def add_positive_coupon_from_selection(self):
-        tree = self.current_tree or self.trees["pending"]
-        sel = tree.selection()
-        if sel:
-            code, tienda = tree.item(sel[0], "values")[1:3]
-            self.db.add_positive_coupon(code, tienda)
-            # También marcar la notificación actual como válida
-            self.db.update_cupon_validity(int(sel[0]), True, 1.0)
-            self.load_notifications()
-            self.show_toast(f"'{code}' marcado como válido. ✅", color="#2ECC71")
 
     def show_details(self, event):
         sel = event.widget.selection()
@@ -901,38 +937,42 @@ class CouponNotifierApp:
                     messagebox.showerror("Error", f"Error importando cerebro: {e}")
 
     def mark_as_invalid(self):
+        """Descarta un cupón y entrena a la IA para ignorar el ruido (Acción Unificada)."""
         if not self.selected_cupon_id: return
         
-        # Diálogo personalizado para preguntar el motivo
-        dialog = ctk.CTkToplevel(self.root)
-        dialog.title("Motivo del Error")
-        dialog.geometry("400x250")
-        dialog.after(100, lambda: [dialog.lift(), dialog.focus_force()])
-        dialog.grab_set()
-        
-        ctk.CTkLabel(dialog, text="¿Por qué no funcionó este cupón?", font=ctk.CTkFont(weight="bold")).pack(pady=20)
-        
-        def set_invalid(reason_type):
-            cupon_data = self.db.get_notification_by_id(self.selected_cupon_id)
-            if cupon_data:
-                # Si es basura (Falso Positivo), aprendemos a ignorar el patrón
-                if reason_type == "basura":
-                    self.learning_system.learn_from_feedback(cupon_data[1], cupon_data[2], False, contexto=cupon_data[6])
-                
-                # En ambos casos marcamos como inválido en la DB para que desaparezca de pendientes
-                self.db.update_cupon_validity(self.selected_cupon_id, False, 0.0)
-                self.load_notifications()
-                
-                msg = "Entendido. Lo he marcado como basura y aprenderé a ignorar patrones similares." if reason_type == "basura" \
-                      else "Marcado como expirado. Mantendré el patrón pero quitaré este código de la lista."
-                messagebox.showinfo("Feedback Recibido", msg)
-                dialog.destroy()
+        cupon_data = self.db.get_notification_by_id(self.selected_cupon_id)
+        if cupon_data:
+            code = cupon_data['cupon']
+            tienda = cupon_data['tienda']
+            
+            # 1. Bloqueo Global (Blacklist dura)
+            self.db.add_false_positive_term(code)
+            
+            # 2. Informar a la IA (ML weights) para que aprenda el patrón contextual
+            self.learning_system.learn_from_feedback(code, tienda, False, contexto=cupon_data.get('contexto'))
+            
+            # 3. Marcar como inválido en la DB para sacarlo de pendientes
+            self.db.update_cupon_validity(self.selected_cupon_id, False, 0.0)
+            
+            # 4. Actualizar UI
+            self.load_notifications()
+            self.show_toast(f"'{code}' descartado y bloqueado globalmente. 🚫", color="#E67E22")
 
-        ctk.CTkButton(dialog, text="🚩 NO ES UN CUPÓN (Basura/ID)", 
-                      command=lambda: set_invalid("basura"), fg_color="#C0392B").pack(pady=10, padx=20, fill="x")
-        ctk.CTkButton(dialog, text="🕒 YA EXPIRÓ / USADO", 
-                      command=lambda: set_invalid("expirado"), fg_color="#7f8c8d").pack(pady=10, padx=20, fill="x")
-        ctk.CTkButton(dialog, text="Cancelar", command=dialog.destroy, fg_color="transparent").pack(pady=5)
+    def mark_as_expired(self):
+        """Marca un cupón como expirado/usado. Entrena a la IA diciendo que el patrón es BUENO."""
+        if not self.selected_cupon_id: return
+        
+        cupon_data = self.db.get_notification_by_id(self.selected_cupon_id)
+        if cupon_data:
+            # 1. Feedback POSITIVO a la IA (el patrón es correcto, es un cupón real)
+            self.learning_system.learn_from_feedback(cupon_data['cupon'], cupon_data['tienda'], True, contexto=cupon_data.get('contexto'))
+            
+            # 2. Marcar como inválido pero estado 'expirado' en la DB
+            self.db.update_cupon_validity(self.selected_cupon_id, False, 0.5, estado='expirado')
+            
+            # 3. Actualizar UI
+            self.load_notifications()
+            self.show_toast("Marcado como expirado. Patrón aprendido como válido. 🕒✔️", color="#7f8c8d")
 
     def on_closing(self):
         if TRAY_AVAILABLE and self.tray_icon:

@@ -91,9 +91,9 @@ class GmailAuthenticator:
         if not config:
             return None
 
-        client_id = config[2]
-        client_secret = config[3]
-        refresh_token = config[4]
+        client_id = config.get('client_id')
+        client_secret = config.get('client_secret')
+        refresh_token = config.get('refresh_token')
 
         if not all([client_id, client_secret, refresh_token]):
             return None
@@ -350,13 +350,16 @@ class GmailOCRProcessor:
             emails = self.search_emails(query=query, max_results=max_emails)
             all_coupons = []
             rows_to_insert = []
+            processed_codes = set()
 
             for i, email in enumerate(emails, 1):
                 coupons = self.process_email(email['id'])
                 for coupon in coupons:
-                    if not self.db.notification_exists(coupon['codigo']):
+                    code = coupon['codigo']
+                    if code not in processed_codes and not self.db.notification_exists(code):
+                        processed_codes.add(code)
                         rows_to_insert.append((
-                            coupon['codigo'],
+                            code,
                             coupon['tienda'],
                             coupon['url'],
                             coupon.get('descuento'),
