@@ -7,6 +7,7 @@ from tkinter import ttk, messagebox
 import customtkinter as ctk
 import webbrowser
 from datetime import datetime, timedelta
+from utils.logo_manager import LogoManager
 
 try:
     import pystray
@@ -58,6 +59,10 @@ class CouponNotifierApp:
         self.selected_cupon_id = None
         self.tray_icon = None
         self.tray_thread = None
+        
+        # Gestor de logotipos
+        self.logo_manager = LogoManager()
+        self.current_logo = None
 
         self.setup_ui()
         self.load_notifications()
@@ -177,7 +182,11 @@ class CouponNotifierApp:
         self.feedback_frame = ctk.CTkFrame(self.main_container, fg_color="#1a1a1a", height=50)
         self.feedback_frame.pack(fill="x", padx=20, pady=5)
         
-        ctk.CTkLabel(self.feedback_frame, text="¿Este cupón funcionó?", font=ctk.CTkFont(size=13)).pack(side="left", padx=20, pady=10)
+        ctk.CTkLabel(self.feedback_frame, text="¿Este cupón funcionó?", font=ctk.CTkFont(size=13)).pack(side="left", padx=(10, 20), pady=10)
+        
+        # Widget de Logo (Nuevo)
+        self.logo_panel = ctk.CTkLabel(self.feedback_frame, text="", width=40, height=40)
+        self.logo_panel.pack(side="left", padx=5)
         
         self.valid_btn = ctk.CTkButton(self.feedback_frame, text="✅ SÍ / CORREGIR", command=self.mark_as_valid,
                                        fg_color="#27AE60", width=140, state="disabled")
@@ -320,10 +329,14 @@ class CouponNotifierApp:
         
         selection = tree.selection()
         if selection:
-            self.selected_cupon_id = int(selection[0])
+            values = tree.item(selection[0], "values")
+            self.selected_cupon_id = int(values[0])
             self.valid_btn.configure(state="normal")
             self.invalid_btn.configure(state="normal")
             self.expired_btn.configure(state="normal")
+            
+            # Actualizar Logo
+            self.update_store_logo(values)
         else:
             self.selected_cupon_id = None
             self.valid_btn.configure(state="disabled")
@@ -393,6 +406,31 @@ class CouponNotifierApp:
             tree.insert("", "end", iid=str(cupon_id), values=(
                 idx, code, tienda, subject, desc, url, f"{conf:.0%}", date, expira or "---"
             ), tags=(tag,))
+
+    def update_store_logo(self, values):
+        """Actualiza el logo de la tienda en el panel de feedback."""
+        if not Image:
+            return
+
+        # N°, Cupón, Tienda, Asunto, Descuento, URL...
+        store_name = values[2]
+        store_url = values[5]
+        
+        def load():
+            try:
+                logo_path = self.logo_manager.get_logo_path(store_name, store_url)
+                if logo_path and os.path.exists(logo_path):
+                    pil_img = Image.open(logo_path).resize((40, 40), Image.LANCZOS)
+                    ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(40, 40))
+                    self.root.after(0, lambda: self.logo_panel.configure(image=ctk_img, text=""))
+                else:
+                    self.root.after(0, lambda: self.logo_panel.configure(image=None, text="🏢"))
+            except Exception as e:
+                logger.error(f"Error cargando logo en UI: {e}")
+                self.root.after(0, lambda: self.logo_panel.configure(image=None, text="🏢"))
+
+        # Cargar de forma asíncrona para no bloquear el hilo principal (descarga de red)
+        threading.Thread(target=load, daemon=True).start()
 
     def bind_hotkeys(self):
         """Vincula teclas de acceso rápido para acciones frecuentes desde la configuración."""
