@@ -6,3 +6,6 @@ opencv-python
 pytesseract
 pillow
 numpy
+validators
+pystray
+pytz

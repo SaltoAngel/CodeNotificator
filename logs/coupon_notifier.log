@@ -270,3 +270,302 @@ AttributeError: 'GmailOCRProcessor' object has no attribute 'scan_emails'. Did y
 2026-01-25 17:16:51 - CouponNotifier - INFO - Cupón encontrado: 1343KJPANRW - Tienda: Rhythm & Beat (confianza: 0.56)
 2026-01-25 17:16:51 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
 2026-01-25 17:22:17 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-02-03 08:23:09 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 08:23:10 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 08:23:23 - CouponNotifier - ERROR - Error obteniendo tokens: Client secrets must be for a web or installed app.
+2026-02-03 08:30:59 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-02-03 08:46:45 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 08:46:45 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 08:46:45 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 08:46:45 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 08:46:46 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 08:46:55 - CouponNotifier - INFO - Conexión a base de datos cerrada
+2026-02-03 08:53:26 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 08:53:26 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 08:53:26 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 08:53:26 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 08:53:27 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 08:53:38 - CouponNotifier - ERROR - Error obteniendo tokens: No se seleccionó archivo credentials.json
+2026-02-03 08:53:38 - CouponNotifier - ERROR - Error en configuración Gmail: No se seleccionó archivo credentials.json
+2026-02-03 08:53:50 - CouponNotifier - ERROR - Error obteniendo tokens: Client secrets must be for a web or installed app.
+2026-02-03 08:53:50 - CouponNotifier - ERROR - Error en configuración Gmail: Client secrets must be for a web or installed app.
+2026-02-03 08:55:18 - CouponNotifier - ERROR - Error obteniendo tokens: [WinError 10013] Intento de acceso a un socket no permitido por sus permisos de acceso
+2026-02-03 08:55:18 - CouponNotifier - ERROR - Error en configuración Gmail: [WinError 10013] Intento de acceso a un socket no permitido por sus permisos de acceso
+2026-02-03 08:55:34 - CouponNotifier - INFO - Configuración actualizada: intervalo_minutos
+2026-02-03 08:56:13 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 08:56:13 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 08:56:13 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 08:56:13 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 08:56:14 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 08:58:09 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 08:58:09 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 08:58:09 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 08:58:09 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 08:58:10 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 08:58:25 - CouponNotifier - INFO - Tokens obtenidos exitosamente
+2026-02-03 08:58:25 - CouponNotifier - INFO - Configuración actualizada: client_id, client_secret, refresh_token, user_email
+2026-02-03 08:58:27 - CouponNotifier - INFO - Configuración actualizada: intervalo_minutos
+2026-02-03 09:00:39 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:00:39 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:00:39 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:00:39 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:00:40 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:01:17 - CouponNotifier - INFO - Tokens obtenidos exitosamente
+2026-02-03 09:01:17 - CouponNotifier - INFO - Configuración actualizada: client_id, client_secret, refresh_token
+2026-02-03 09:01:19 - CouponNotifier - ERROR - Error obteniendo tokens: No se seleccionó archivo credentials.json
+2026-02-03 09:01:19 - CouponNotifier - ERROR - Error en configuración Gmail: No se seleccionó archivo credentials.json
+2026-02-03 09:01:28 - CouponNotifier - ERROR - Error obteniendo tokens: No se seleccionó archivo credentials.json
+2026-02-03 09:01:28 - CouponNotifier - ERROR - Error en configuración Gmail: No se seleccionó archivo credentials.json
+2026-02-03 09:01:40 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:01:40 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:01:40 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:01:40 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:01:41 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:02:17 - CouponNotifier - INFO - Tokens obtenidos exitosamente
+2026-02-03 09:02:17 - CouponNotifier - INFO - Configuración actualizada: client_id, client_secret, refresh_token, user_email
+2026-02-03 09:02:23 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:02:24 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-02-03 09:02:24 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:02:24 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón encontrado: WN8M9RBZYPDELKNJ5SFMC4G - Tienda: Rhythm and Beat (confianza: 0.56)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón agregado: WN8M9RBZYPDELKNJ5SFMC4G - Rhythm and Beat (confianza: 0.56)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón encontrado: MONDAY-FRIDAY10AM - Tienda: JunoActive (confianza: 0.56)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón agregado: MONDAY-FRIDAY10AM - JunoActive (confianza: 0.56)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón encontrado: CART50 - Tienda: ScanCafe (confianza: 0.66)
+2026-02-03 09:02:25 - CouponNotifier - INFO - Cupón agregado: CART50 - ScanCafe (confianza: 0.66)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Cupón encontrado: COPYRIGHT2026DETAILED - Tienda: Detailed Image (confianza: 0.56)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Cupón agregado: COPYRIGHT2026DETAILED - Detailed Image (confianza: 0.56)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Cupón encontrado: 2000BROADWAY - Tienda: Mixbook (confianza: 0.56)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Cupón agregado: 2000BROADWAY - Mixbook (confianza: 0.56)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:02:26 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Procesando: Building on a legacy... (Remitente: Vivobarefoot Australia <cs-australia@vivobarefoot.com>)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Cupón encontrado: 2026VIVOBAREFOOTAUSTRALIA - Tienda: Vivobarefoot Australia (confianza: 0.56)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Cupón agregado: 2026VIVOBAREFOOTAUSTRALIA - Vivobarefoot Australia (confianza: 0.56)
+2026-02-03 09:02:27 - CouponNotifier - INFO - Escaneo completado. Encontrados 6 cupones nuevos
+2026-02-03 09:14:14 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:14:15 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:14:15 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:14:15 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:14:15 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:14:15 - CouponNotifier - INFO - Cupón encontrado: WN8M9RBZYPDELKNJ5SFMC4G - Tienda: Rhythm and Beat (confianza: 0.56)
+2026-02-03 09:14:15 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:14:15 - CouponNotifier - INFO - Cupón encontrado: MONDAY-FRIDAY10AM - Tienda: JunoActive (confianza: 0.56)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Cupón encontrado: CART50 - Tienda: ScanCafe (confianza: 0.66)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Cupón encontrado: COPYRIGHT2026DETAILED - Tienda: Detailed Image (confianza: 0.56)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Cupón encontrado: 2000BROADWAY - Tienda: Mixbook (confianza: 0.56)
+2026-02-03 09:14:16 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Procesando: Building on a legacy... (Remitente: Vivobarefoot Australia <cs-australia@vivobarefoot.com>)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Cupón encontrado: 2026VIVOBAREFOOTAUSTRALIA - Tienda: Vivobarefoot Australia (confianza: 0.56)
+2026-02-03 09:14:17 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-02-03 09:14:28 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:14:28 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:14:28 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:14:28 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Cupón encontrado: WN8M9RBZYPDELKNJ5SFMC4G - Tienda: Rhythm and Beat (confianza: 0.56)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Cupón encontrado: MONDAY-FRIDAY10AM - Tienda: JunoActive (confianza: 0.56)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Cupón encontrado: CART50 - Tienda: ScanCafe (confianza: 0.66)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:14:29 - CouponNotifier - INFO - Cupón encontrado: COPYRIGHT2026DETAILED - Tienda: Detailed Image (confianza: 0.56)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Cupón encontrado: 2000BROADWAY - Tienda: Mixbook (confianza: 0.56)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Procesando: Building on a legacy... (Remitente: Vivobarefoot Australia <cs-australia@vivobarefoot.com>)
+2026-02-03 09:14:30 - CouponNotifier - INFO - Cupón encontrado: 2026VIVOBAREFOOTAUSTRALIA - Tienda: Vivobarefoot Australia (confianza: 0.56)
+2026-02-03 09:14:31 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-02-03 09:19:44 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:19:44 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:19:44 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:19:45 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:19:45 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:19:46 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:19:47 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-02-03 09:19:47 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:19:48 - CouponNotifier - INFO - Procesando: Valentine’s Day Picks: Bright Bags & Shoes... (Remitente: KARL LAGERFELD PARIS <Karllagerfeldparis@email.karllagerfeldparis.com>)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón encontrado: PREVI0USPURCHASES - Tienda: KARL LAGERFELD PARIS (confianza: 0.62)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón agregado: PREVI0USPURCHASES - KARL LAGERFELD PARIS (confianza: 0.62)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón encontrado: PR0TECTY0URINF0RMATI0N - Tienda: Rhythm and Beat (confianza: 0.62)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón agregado: PR0TECTY0URINF0RMATI0N - Rhythm and Beat (confianza: 0.62)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón encontrado: PR0M0C0DEVALID - Tienda: JunoActive (confianza: 0.66)
+2026-02-03 09:19:48 - CouponNotifier - INFO - Cupón agregado: PR0M0C0DEVALID - JunoActive (confianza: 0.66)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón encontrado: Y0URSPECIALC0DE - Tienda: ScanCafe (confianza: 0.66)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón agregado: Y0URSPECIALC0DE - ScanCafe (confianza: 0.66)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón encontrado: Y0URWINTERSHIPPING - Tienda: Detailed Image (confianza: 0.62)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón agregado: Y0URWINTERSHIPPING - Detailed Image (confianza: 0.62)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón encontrado: DISC0UNTEDPAGESAPPLY - Tienda: Mixbook (confianza: 0.62)
+2026-02-03 09:19:49 - CouponNotifier - INFO - Cupón agregado: DISC0UNTEDPAGESAPPLY - Mixbook (confianza: 0.62)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:19:50 - CouponNotifier - INFO - Escaneo completado. Encontrados 6 cupones nuevos
+2026-02-03 09:19:54 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:19:55 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:19:55 - CouponNotifier - INFO - Procesando: Valentine’s Day Picks: Bright Bags & Shoes... (Remitente: KARL LAGERFELD PARIS <Karllagerfeldparis@email.karllagerfeldparis.com>)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Cupón encontrado: PREVI0USPURCHASES - Tienda: KARL LAGERFELD PARIS (confianza: 0.62)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Cupón encontrado: PR0TECTY0URINF0RMATI0N - Tienda: Rhythm and Beat (confianza: 0.62)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:19:55 - CouponNotifier - INFO - Cupón encontrado: PR0M0C0DEVALID - Tienda: JunoActive (confianza: 0.66)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Cupón encontrado: Y0URSPECIALC0DE - Tienda: ScanCafe (confianza: 0.66)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Cupón encontrado: Y0URWINTERSHIPPING - Tienda: Detailed Image (confianza: 0.62)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Cupón encontrado: DISC0UNTEDPAGESAPPLY - Tienda: Mixbook (confianza: 0.62)
+2026-02-03 09:19:56 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:19:57 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:19:57 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:19:57 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:19:57 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:19:57 - CouponNotifier - INFO - Escaneo completado. Encontrados 0 cupones nuevos
+2026-02-03 09:23:32 - CouponNotifier - INFO - Aprendizaje: CART50 -> MIXED_6 (válido)
+2026-02-03 09:23:32 - CouponNotifier - INFO - Cupón 12 marcado como válido
+2026-02-03 09:24:44 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:24:44 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:24:44 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:24:44 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:24:45 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:24:47 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:24:48 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-02-03 09:24:48 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:24:51 - CouponNotifier - INFO - Procesando: Valentine’s Day Picks: Bright Bags & Shoes... (Remitente: KARL LAGERFELD PARIS <Karllagerfeldparis@email.karllagerfeldparis.com>)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón encontrado: PREVI0USPURCHASES - Tienda: KARL LAGERFELD PARIS (confianza: 0.62)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón agregado: PREVI0USPURCHASES - KARL LAGERFELD PARIS (confianza: 0.62)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón encontrado: PR0TECTY0URINF0RMATI0N - Tienda: Rhythm and Beat (confianza: 0.62)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón agregado: PR0TECTY0URINF0RMATI0N - Rhythm and Beat (confianza: 0.62)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón encontrado: PR0M0C0DEVALID - Tienda: JunoActive (confianza: 0.66)
+2026-02-03 09:24:51 - CouponNotifier - INFO - Cupón agregado: PR0M0C0DEVALID - JunoActive (confianza: 0.66)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón encontrado: CART50 - Tienda: ScanCafe (confianza: 0.94)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón agregado: CART50 - ScanCafe (confianza: 0.94)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón encontrado: Y0URWINTERSHIPPING - Tienda: Detailed Image (confianza: 0.62)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón agregado: Y0URWINTERSHIPPING - Detailed Image (confianza: 0.62)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón encontrado: DISC0UNTEDPAGESAPPLY - Tienda: Mixbook (confianza: 0.62)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Cupón agregado: DISC0UNTEDPAGESAPPLY - Mixbook (confianza: 0.62)
+2026-02-03 09:24:52 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:24:53 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:24:53 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:24:53 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:24:53 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:24:53 - CouponNotifier - INFO - Escaneo completado. Encontrados 6 cupones nuevos
+2026-02-03 09:37:29 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:37:29 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:37:29 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:37:29 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:37:30 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:42:02 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:42:02 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:42:02 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:42:03 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:42:03 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:42:06 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:42:07 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-02-03 09:42:07 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:42:07 - CouponNotifier - INFO - Procesando: Valentine’s Day Picks: Bright Bags & Shoes... (Remitente: KARL LAGERFELD PARIS <Karllagerfeldparis@email.karllagerfeldparis.com>)
+2026-02-03 09:42:07 - CouponNotifier - INFO - Cupón encontrado: COMB1NED - Tienda: KARL LAGERFELD PARIS (confianza: 0.73)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Cupón encontrado: CUST0MERSUPP0RT - Tienda: Rhythm and Beat (confianza: 0.72)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:42:08 - CouponNotifier - INFO - Cupón encontrado: BUTTERCUP - Tienda: JunoActive (confianza: 0.52)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Cupón encontrado: USEDY0URSPECIAL - Tienda: ScanCafe (confianza: 0.73)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Cupón encontrado: SAV1NGS - Tienda: Detailed Image (confianza: 0.73)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:42:09 - CouponNotifier - INFO - Cupón encontrado: Y0URBESTM0MENTS - Tienda: Mixbook (confianza: 0.73)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:42:10 - CouponNotifier - INFO - Escaneo completado. Encontrados 6 cupones nuevos
+2026-02-03 09:45:48 - CouponNotifier - INFO - Modo sin scikit-learn: usando reglas heurísticas mejoradas
+2026-02-03 09:45:48 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 09:45:48 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 09:45:49 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 09:45:50 - CouponNotifier - INFO - Aplicación iniciada correctamente
+2026-02-03 09:47:25 - CouponNotifier - INFO - Iniciando escaneo de correos...
+2026-02-03 09:47:26 - CouponNotifier - INFO - Autenticado como: correoparaplatad@gmail.com
+2026-02-03 09:47:26 - CouponNotifier - INFO - Encontrados 15 correos
+2026-02-03 09:47:26 - CouponNotifier - INFO - Procesando: Valentine’s Day Picks: Bright Bags & Shoes... (Remitente: KARL LAGERFELD PARIS <Karllagerfeldparis@email.karllagerfeldparis.com>)
+2026-02-03 09:47:26 - CouponNotifier - INFO - Cupón encontrado: C0MBINED - Tienda: KARL LAGERFELD PARIS (confianza: 0.73)
+2026-02-03 09:47:27 - CouponNotifier - INFO - Procesando: A&H Mastermind - February Edition⚽... (Remitente: "A&H International" <support@referee-equipment.com>)
+2026-02-03 09:47:27 - CouponNotifier - INFO - Procesando: Re: 50% Off These Items for V-Day 💖✨... (Remitente: Carter Wear <customerservice@carterwear.com>)
+2026-02-03 09:47:27 - CouponNotifier - INFO - Procesando: Your order is ready to ship... (Remitente: Rhythm and Beat <support@rhythmandbeat.com>)
+2026-02-03 09:47:27 - CouponNotifier - INFO - Cupón encontrado: DIRECTLYTHR0UGH - Tienda: Rhythm and Beat (confianza: 0.72)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Procesando: FREE underwear...seriously! ✨... (Remitente: JunoActive <marketing@junoactive.com>)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Cupón encontrado: BUTTERCUP - Tienda: JunoActive (confianza: 0.52)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Procesando: FREE Stability Chair? Yes, Please!... (Remitente: Best Gym Equipment <info@bestgymequipment.co.uk>)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Procesando: Your 50% Off code expires tonight... (Remitente: ScanCafe <help@scancafe.com>)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Cupón encontrado: USEDYOURSPEC1AL - Tienda: ScanCafe (confianza: 0.73)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Procesando: Better Together. Ride Together.... (Remitente: Darevie <store+51310362802@g.shopifyemail.com>)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Procesando: Open Your Winter Shipping Offer!... (Remitente: Detailed Image <newsletter@detailedimage.com>)
+2026-02-03 09:47:28 - CouponNotifier - INFO - Cupón encontrado: SAV1NGS - Tienda: Detailed Image (confianza: 0.73)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: There’s no limit to your love story... (Remitente: Mixbook <mixbook@eml.mixbook.com>)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Cupón encontrado: Y0URBESTM0MENTS - Tienda: Mixbook (confianza: 0.73)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: 🌙 See the stars with our Astro gear 🌟... (Remitente: Park Cameras <newsletter@email.parkcameras.com>)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: dull skin's worst nightmare... (Remitente: Pacifica Beauty <hello@pacificabeauty.com>)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: Style Secrets Revealed... (Remitente: SHEIN <shein@email.us.shein.com>)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: CLOSING DOWN... (Remitente: "Caravan Bits & Bobs" <store+44626968742@g.shopifyemail.com>)
+2026-02-03 09:47:29 - CouponNotifier - INFO - Procesando: Mask. Roll. Repeat. 😎 Up to 25% OFF... (Remitente: Paint Access <trade@paintaccess.com.au>)
+2026-02-03 09:47:30 - CouponNotifier - INFO - Escaneo completado. Encontrados 3 cupones nuevos
+2026-02-03 10:09:46 - CouponNotifier - WARNING - win10toast/plyer no instalado. Las notificaciones estarán desactivadas.
+2026-02-03 10:09:46 - CouponNotifier - WARNING - Instala con: pip install win10toast
+2026-02-03 10:09:46 - CouponNotifier - INFO - Tablas de base de datos creadas/verificadas
+2026-02-03 10:09:47 - CouponNotifier - INFO - Aplicación iniciada correctamente
