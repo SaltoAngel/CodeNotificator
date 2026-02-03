@@ -8,9 +8,10 @@ import pytz
 import validators
 
 from utils.logger import logger
-from core.ocr_engine import ocr_image_bytes, ocr_images_parallel, preprocess_image_for_ocr
+from core.ocr_engine import ocr_image_bytes, ocr_images_parallel
+from core.extractor import CouponExtractor
 
-DEFAULT_TIMEZONE = 'America/Bogota'
+DEFAULT_TIMEZONE = 'America/Caracas'
 
 
 class GmailAuthenticator:
@@ -111,6 +112,7 @@ class GmailOCRProcessor:
     def __init__(self, db_manager, learning_system=None):
         self.db = db_manager
         self.learning_system = learning_system
+        self.extractor = CouponExtractor(db_manager, learning_system)
         self.service = None
         self.credentials = None
         self.last_auth = None
@@ -118,130 +120,8 @@ class GmailOCRProcessor:
         self.current_email = None
         self.is_authenticated = False
 
-        self.positive_context_keywords = [
-            "CODE", "CODIGO", "CÓDIGO", "CUPON", "CUPÓN", "PROMO", "PROMOCION",
-            "DESCUENTO", "OFF", "%", "REBATE", "DEAL", "AHORRA"
-        ]
-        self.negative_context_keywords = [
-            "TRACKING", "SEGUIMIENTO", "ENVIO", "ENVÍO", "SHIPMENT", "ORDER",
-            "PEDIDO", "FACTURA", "INVOICE", "GUIA", "GUÍA"
-        ]
-
-        self.blacklist_words = {
-            "PROMOC0DE", "PROMOCODE", "VALID", "EXPIRED", "CLICKHERE",
-            "SHOPNOW", "VIEWONLINE", "UNSUBSCRIBE", "PRIVACY"
-        }
-
         self.trusted_sender_domains = {"hollister.com"}
         self.trusted_sender_bonus = 0.15
-
-    def _clean_url(self, url):
-        if not url:
-            return ""
-        cleaned = url.strip().strip(')\]\}>,.;')
-        if not cleaned:
-            return ""
-        if not cleaned.lower().startswith(("http://", "https://")):
-            cleaned = "https://" + cleaned
-        if validators.url(cleaned):
-            return cleaned
-        return ""
-
-    def _calculate_context_score(self, text, start_idx, end_idx):
-        window = 60
-        context_start = max(0, start_idx - window)
-        context_end = min(len(text), end_idx + window)
-        context = text[context_start:context_end].upper()
-
-        score = 0.0
-        if any(k in context for k in self.positive_context_keywords):
-            score += 0.40
-        if any(k in context for k in self.negative_context_keywords):
-            score -= 0.50
-
-        if re.search(r'(CODE|CODIGO|CÓDIGO|CUPON|CUPÓN)\s*[:=\-]', context):
-            score += 0.1
-
-        score += self._word_proximity_bonus(text, start_idx, end_idx)
-        return score
-
-    def _word_proximity_bonus(self, text, start_idx, end_idx, max_words=5):
-        try:
-            words = list(re.finditer(r"[A-ZÁÉÍÓÚÜÑ0-9%$]+", text.upper()))
-            if not words:
-                return 0.0
-
-            code_word_idx = None
-            for i, w in enumerate(words):
-                if w.start() <= start_idx <= w.end() or w.start() <= end_idx <= w.end():
-                    code_word_idx = i
-                    break
-                if w.start() > end_idx:
-                    break
-
-            if code_word_idx is None:
-                return 0.0
-
-            bonus = 0.0
-            for i, w in enumerate(words):
-                if i == code_word_idx:
-                    continue
-                if abs(i - code_word_idx) > max_words:
-                    continue
-                token = w.group(0)
-                if token in self.positive_context_keywords or token in ["DTO", "VOUCHER", "CUPON", "CUPÓN"]:
-                    bonus += 0.3
-                if token in self.negative_context_keywords:
-                    bonus -= 0.5
-            return bonus
-        except Exception:
-            return 0.0
-
-    def _is_blacklisted(self, code):
-        code_upper = code.upper()
-        if code_upper in self.blacklist_words:
-            return True
-        return any(word in code_upper for word in self.blacklist_words)
-
-    def _has_hot_context(self, text, start_idx, end_idx):
-        window = 40
-        context_start = max(0, start_idx - window)
-        context_end = min(len(text), end_idx + window)
-        context = text[context_start:context_end].upper()
-        if any(k in context for k in self.positive_context_keywords):
-            return True
-        if "%" in context or "$" in context:
-            return True
-        return False
-
-    def _has_url_context(self, text, start_idx, end_idx):
-        window = 40
-        context_start = max(0, start_idx - window)
-        context_end = min(len(text), end_idx + window)
-        context = text[context_start:context_end].upper()
-        return any(tok in context for tok in ["HTTP", ".COM", "/"])
-
-    def _luhn_check(self, code):
-        if not code.isdigit():
-            return False
-        total = 0
-        reverse_digits = code[::-1]
-        for i, d in enumerate(reverse_digits):
-            n = int(d)
-            if i % 2 == 1:
-                n *= 2
-                if n > 9:
-                    n -= 9
-            total += n
-        return total % 10 == 0
-
-    def _validate_by_brand(self, code, tienda=None):
-        if not tienda:
-            return True
-        tienda_norm = tienda.strip().lower()
-        if "walmart" in tienda_norm and code.isdigit() and 8 <= len(code) <= 16:
-            return self._luhn_check(code)
-        return True
 
     def _extract_sender_email(self, from_header):
         if not from_header:
@@ -259,58 +139,6 @@ class GmailOCRProcessor:
             return False
         domain = email.split('@')[-1]
         return any(domain == d or domain.endswith("." + d) for d in self.trusted_sender_domains)
-
-    def _generate_ocr_variants(self, code):
-        variants = {code}
-        if '0' in code or 'O' in code:
-            variants.add(code.replace('0', 'O'))
-            variants.add(code.replace('O', '0'))
-        if '1' in code or 'I' in code:
-            variants.add(code.replace('1', 'I'))
-            variants.add(code.replace('I', '1'))
-        return list(variants)
-
-    def _select_best_variant(self, code, tienda, text, start_idx, end_idx):
-        best_code = None
-        best_conf = -1
-
-        for variant in self._generate_ocr_variants(code):
-            if self._is_blacklisted(variant):
-                continue
-            if self.db.is_false_positive_term(variant):
-                continue
-            if len(variant) > 15:
-                continue
-            if self._has_url_context(text, start_idx, end_idx):
-                continue
-            if variant.isalpha() and not self._has_hot_context(text, start_idx, end_idx):
-                continue
-
-            if variant.isalpha() and self._has_hot_context(text, start_idx, end_idx):
-                is_valid = True
-            else:
-                is_valid = self.is_valid_coupon_code(variant, tienda)
-            if not is_valid:
-                continue
-
-            base_conf = 0.6
-            if self.learning_system:
-                base_conf = self.learning_system.calculate_confidence(variant, tienda, contexto=text)
-
-            context_score = self._calculate_context_score(text, start_idx, end_idx)
-            final_conf = min(max(base_conf + context_score, 0.1), 0.99)
-
-            if self.db.is_positive_coupon(variant):
-                final_conf = min(final_conf + 0.25, 0.99)
-
-            if final_conf > best_conf or (final_conf == best_conf and (best_code is None or len(variant) > len(best_code))):
-                best_conf = final_conf
-                best_code = variant
-
-        if best_code is None:
-            return None
-
-        return best_code, best_conf
 
     def _format_gmail_datetime(self, internal_date_ms):
         try:
@@ -421,114 +249,6 @@ class GmailOCRProcessor:
             logger.error(f"Error extrayendo nombre del remitente '{from_header}': {e}")
             return "Desconocida"
 
-    def extract_coupon_info(self, text, tienda_from_sender=None):
-        info = {
-            'codigo': '',
-            'tienda': 'Desconocida',
-            'url': '',
-            'descuento': '',
-            'contexto': text[:300]
-        }
-
-        if tienda_from_sender and tienda_from_sender != 'Desconocida':
-            info['tienda'] = tienda_from_sender
-
-        desc_matches = re.findall(r'(\d{1,3}(?:[,.]\d{1,2})?)%', text)
-        if desc_matches:
-            info['descuento'] = f"{max(desc_matches, key=lambda x: float(x.replace(',', '.')))}%"
-
-        url_spans = []
-        for m in re.finditer(r'https?://[^\s]+', text):
-            url_spans.append((m.start(), m.end(), m.group(0)))
-
-        patterns = [
-            r'(?:codigo|código|cup[oó]n|promo|coupon|code)[:\s\-]*([A-Z0-9\-]{6,20})',
-            r'([A-Z0-9]{4,}[-\s]?[A-Z0-9]{4,}[-\s]?[A-Z0-9]{4,})',
-            r'CODE\s*[:=]?\s*([A-Z0-9\-]+)',
-            r'([A-Z]{2,}\d{3,}[A-Z]{0,3})',
-            r'(\d{4,}[A-Z]{2,})',
-            r'\b([A-Z]{4,12})\b',
-        ]
-
-        candidates = []
-        for pattern in patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                code_raw = match.group(1).upper().strip()
-                code = re.sub(r'\s+', '', code_raw)
-
-                start_idx, end_idx = match.start(1), match.end(1)
-                if any(start_idx >= s and end_idx <= e for s, e, _ in url_spans):
-                    continue
-
-                best_variant = self._select_best_variant(code, info['tienda'], text, start_idx, end_idx)
-                if best_variant:
-                    best_code, final_conf = best_variant
-                    candidates.append({
-                        'code': best_code,
-                        'confidence': final_conf,
-                        'start': start_idx,
-                        'end': end_idx
-                    })
-
-        if candidates:
-            candidates.sort(key=lambda c: (c['confidence'], len(c['code'])), reverse=True)
-            best = candidates[0]
-            info['codigo'] = best['code']
-            info['confianza_contexto'] = best['confidence']
-
-        valid_urls = []
-        for _, _, url in url_spans:
-            cleaned = self._clean_url(url)
-            if cleaned:
-                valid_urls.append(cleaned)
-
-        if valid_urls:
-            info['url'] = valid_urls[0]
-
-        if info['tienda'] == 'Desconocida':
-            tiendas = {
-                'amazon': ['amazon', 'amzn'],
-                'mercado libre': ['mercado libre', 'mercadolibre', 'ml'],
-                'ebay': ['ebay'],
-                'aliexpress': ['aliexpress'],
-                'walmart': ['walmart'],
-            }
-
-            text_lower = text.lower()
-            for tienda, keywords in tiendas.items():
-                if any(keyword in text_lower for keyword in keywords):
-                    info['tienda'] = tienda.title()
-                    break
-
-        return info
-
-    def is_valid_coupon_code(self, code, tienda=None):
-        if not code or len(code) < 4 or len(code) > 25:
-            return False
-
-        if not self._validate_by_brand(code, tienda):
-            return False
-
-        if self.learning_system:
-            confidence = self.learning_system.calculate_confidence(code, tienda)
-            return confidence > 0.5
-
-        has_digit = any(c.isdigit() for c in code)
-        has_letter = any(c.isalpha() for c in code)
-
-        if not (has_digit and has_letter):
-            return False
-
-        patterns = [
-            r'^[A-Z0-9]{4,}$',
-            r'^[A-Z0-9]{4,}-[A-Z0-9]{4,}$',
-            r'^[A-Z]{2,}\d{3,}[A-Z]{0,3}$',
-            r'^\d{4,}[A-Z]{2,}$',
-        ]
-
-        return any(re.match(pattern, code, re.IGNORECASE) for pattern in patterns)
-
     def process_email(self, message_id):
         try:
             message = self.service.users().messages().get(
@@ -586,7 +306,7 @@ class GmailOCRProcessor:
                     body_text = (body_text or "") + "\n" + "\n".join([t for t in ocr_texts if t])
 
             if body_text:
-                coupon_info = self.extract_coupon_info(body_text, tienda_from_email)
+                coupon_info = self.extractor.extract_coupon_info(body_text, tienda_from_email)
 
                 if coupon_info['codigo']:
                     if tienda_from_email and tienda_from_email != 'Desconocida':
@@ -644,7 +364,8 @@ class GmailOCRProcessor:
                             coupon.get('contexto'),
                             coupon.get('id_correo'),
                             coupon.get('asunto'),
-                            coupon.get('fecha')
+                            coupon.get('fecha'),
+                            coupon.get('fecha_expiracion')
                         ))
                         all_coupons.append(coupon)
 

@@ -120,7 +120,8 @@ class SimpleLearningSystem:
         """Extrae keywords simples del contexto cercano al cupón."""
         if not contexto:
             return []
-        words = re.findall(r"[A-ZÁÉÍÓÚÜÑ]{4,}", contexto.upper())
+        contexto_str = str(contexto)
+        words = re.findall(r"[A-ZÁÉÍÓÚÜÑ]{4,}", contexto_str.upper())
         filtered = [w for w in words if w not in self.stopwords]
         # Priorizar palabras más largas (más informativas)
         filtered.sort(key=len, reverse=True)

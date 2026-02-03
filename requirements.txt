@@ -9,3 +9,8 @@ numpy
 validators
 pystray
 pytz
+customtkinter
+plyer
+requests
+darkdetect
+python-dotenv

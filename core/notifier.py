@@ -4,16 +4,12 @@ import logging
 logger = logging.getLogger('CouponNotifier')
 
 try:
-    import win10toast
+    from plyer import notification
     NOTIFICATIONS_AVAILABLE = True
 except ImportError:
-    try:
-        from plyer import notification
-        NOTIFICATIONS_AVAILABLE = True
-    except ImportError:
-        NOTIFICATIONS_AVAILABLE = False
-        logger.warning("win10toast/plyer no instalado. Las notificaciones estarán desactivadas.")
-        logger.warning("Instala con: pip install win10toast")
+    NOTIFICATIONS_AVAILABLE = False
+    logger.warning("Plyer no instalado. Las notificaciones estarán desactivadas.")
+    logger.warning("Instala con: pip install plyer")
 
 
 class SystemNotifier:
@@ -31,11 +27,12 @@ class SystemNotifier:
             return
 
         try:
-            if 'win10toast' in globals():
-                toast = win10toast.ToastNotifier()
-                toast.show_toast(title, message, duration=duration, threaded=True)
-            elif 'notification' in globals():
-                notification.notify(title=title, message=message, timeout=duration)
+            notification.notify(
+                title=title,
+                message=message,
+                app_name="CodeNotificator",
+                timeout=duration
+            )
 
             self.last_notification = now
             logger.info(f"Notificación: {title}")

@@ -3,7 +3,7 @@ import logging
 
 DEFAULT_SEARCH_QUERY = ''
 DEFAULT_SEARCH_KEYWORDS = ''
-DEFAULT_MAX_EMAILS = 15
+DEFAULT_MAX_EMAILS = 50
 
 logger = logging.getLogger('CouponNotifier')
 
@@ -75,6 +75,19 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE notifications ADD COLUMN contexto TEXT")
         if 'id_correo' not in notif_cols:
             cursor.execute("ALTER TABLE notifications ADD COLUMN id_correo TEXT")
+        if 'fecha_expiracion' not in notif_cols:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN fecha_expiracion DATETIME")
+        if 'usuario_valido' not in notif_cols:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN usuario_valido INTEGER DEFAULT 0")
+        if 'es_valido' not in notif_cols:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN es_valido INTEGER DEFAULT 1")
+        if 'confianza' not in notif_cols:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN confianza REAL DEFAULT 0.5")
+        
+        # Asegurar que no haya valores NULL en las nuevas columnas para que el filtrado funcione
+        cursor.execute("UPDATE notifications SET usuario_valido = 0 WHERE usuario_valido IS NULL")
+        cursor.execute("UPDATE notifications SET es_valido = 1 WHERE es_valido IS NULL")
+        cursor.execute("UPDATE notifications SET confianza = 0.5 WHERE confianza IS NULL")
 
         for col_name, col_type in columnas_a_agregar:
             if col_name not in cols:
@@ -188,17 +201,17 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def add_notification(self, cupon, tienda, url, descuento=None, confianza=0.5, contexto=None, id_correo=None, asunto=None, fecha=None):
+    def add_notification(self, cupon, tienda, url, descuento=None, confianza=0.5, contexto=None, id_correo=None, asunto=None, fecha=None, fecha_expiracion=None):
         cursor = self.conn.cursor()
         if fecha:
             cursor.execute(
-                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha)
+                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha, fecha_expiracion)
             )
         else:
             cursor.execute(
-                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto)
+                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion)
             )
         self.conn.commit()
         logger.info(f"Cupón agregado: {cupon} - {tienda} (confianza: {confianza:.2f})")
@@ -209,7 +222,7 @@ class DatabaseManager:
             return 0
         cursor = self.conn.cursor()
         cursor.executemany(
-            "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows
         )
         self.conn.commit()
@@ -224,7 +237,7 @@ class DatabaseManager:
         return cursor.fetchone() is not None
 
     def get_notifications(self, limit=100, estado=None, min_confidence=None, days=None, tienda=None, usuario_valido=None, es_valido=None):
-        query = "SELECT id, cupon, tienda, asunto, URL, descuento, estado, usuario_valido, es_valido, confianza, Fecha FROM notifications"
+        query = "SELECT id, cupon, tienda, asunto, URL, descuento, estado, usuario_valido, es_valido, confianza, Fecha, fecha_expiracion FROM notifications"
         params = []
 
         where_clauses = []
@@ -241,8 +254,9 @@ class DatabaseManager:
             params.append(f"-{int(days)} days")
 
         if tienda:
-            where_clauses.append("LOWER(tienda) LIKE ?")
-            params.append(f"%{tienda.lower()}%")
+            where_clauses.append("(LOWER(tienda) LIKE ? OR LOWER(cupon) LIKE ?)")
+            search_term = f"%{tienda.lower()}%"
+            params.extend([search_term, search_term])
 
         if usuario_valido is not None:
             where_clauses.append("usuario_valido = ?")
@@ -261,6 +275,25 @@ class DatabaseManager:
         cursor = self.conn.cursor()
         cursor.execute(query, params)
         return cursor.fetchall()
+
+    def get_notification_by_id(self, cupon_id):
+        cursor = self.conn.cursor()
+        # Usamos row_factory temporalmente para obtener un diccionario
+        orig_factory = self.conn.row_factory
+        self.conn.row_factory = sqlite3.Row
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM notifications WHERE id = ?", (cupon_id,))
+        row = cursor.fetchone()
+        self.conn.row_factory = orig_factory
+        return dict(row) if row else None
+
+    def delete_notification(self, cupon_id):
+        self.conn.execute("DELETE FROM notifications WHERE id = ?", (cupon_id,))
+        self.conn.commit()
+
+    def delete_old_notifications(self, cutoff):
+        self.conn.execute("DELETE FROM notifications WHERE Fecha < ?", (cutoff,))
+        self.conn.commit()
 
     def obtener_id_gmail_por_db(self, id_db):
         cursor = self.conn.cursor()
@@ -295,6 +328,16 @@ class DatabaseManager:
         )
         self.conn.commit()
         logger.info(f"Cupón {cupon_id} marcado como {'válido' if es_valido else 'inválido'}")
+
+    def update_cupon_full(self, cupon_id, cupon, tienda, descuento, es_valido=1, confianza=1.0):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            UPDATE notifications 
+            SET cupon = ?, tienda = ?, descuento = ?, es_valido = ?, usuario_valido = 1, confianza = ?
+            WHERE id = ?
+        ''', (cupon, tienda, descuento, es_valido, confianza, cupon_id))
+        self.conn.commit()
+        logger.info(f"Cupón {cupon_id} actualizado con datos corregidos.")
 
     def add_user_feedback(self, cupon_id, cupon_text, tienda, es_valido, comentario=""):
         cursor = self.conn.cursor()
@@ -475,12 +518,100 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def is_positive_coupon(self, code):
+        return cursor.fetchone() is not None
+
+    def is_positive_coupon(self, code, tienda=None):
         if not code:
             return False
         cursor = self.conn.cursor()
-        cursor.execute("SELECT 1 FROM positive_coupons WHERE code = ? LIMIT 1", (code.upper(),))
+        if tienda:
+            cursor.execute("SELECT 1 FROM positive_coupons WHERE code = ? AND (tienda = ? OR tienda IS NULL) LIMIT 1", (code.upper(), tienda))
+        else:
+            cursor.execute("SELECT 1 FROM positive_coupons WHERE code = ? LIMIT 1", (code.upper(),))
         return cursor.fetchone() is not None
+
+    def get_store_stats(self, limit=5):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT tienda, COUNT(*) as total 
+            FROM notifications 
+            GROUP BY tienda 
+            ORDER BY total DESC 
+            LIMIT ?
+        ''', (limit,))
+        return cursor.fetchall()
+
+    def mark_expired_coupons(self):
+        """Marca automáticamente como inválidos los cupones que ya vencieron."""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            UPDATE notifications 
+            SET es_valido = 0, estado = 'expirado', usuario_valido = 1 
+            WHERE fecha_expiracion IS NOT NULL 
+            AND fecha_expiracion < CURRENT_TIMESTAMP 
+            AND usuario_valido = 0
+        ''')
+        count = cursor.rowcount
+        self.conn.commit()
+        if count > 0:
+            logger.info(f"Auto-limpieza: {count} cupones marcados como expirados.")
+        return count
+
+    def get_brain_data(self):
+        """Recopila todos los datos de aprendizaje y listas negras para exportar."""
+        cursor = self.conn.cursor()
+        
+        data = {
+            "false_positive_terms": self.get_false_positive_terms(limit=5000),
+            "positive_coupons": self.get_positive_coupons(limit=5000),
+            "learning_patterns": [],
+            "keyword_weights": []
+        }
+        
+        cursor.execute("SELECT tienda, patron, total_apariciones, exitosos, confianza FROM learning_patterns")
+        data["learning_patterns"] = [
+            {"tienda": r[0], "patron": r[1], "total": r[2], "exitosos": r[3], "confianza": r[4]} 
+            for r in cursor.fetchall()
+        ]
+        
+        cursor.execute("SELECT tienda, keyword, total_apariciones, exitosos, peso FROM keyword_weights")
+        data["keyword_weights"] = [
+            {"tienda": r[0], "keyword": r[1], "total": r[2], "exitosos": r[3], "peso": r[4]} 
+            for r in cursor.fetchall()
+        ]
+        
+        return data
+
+    def import_brain_data(self, data):
+        """Importa datos de cerebro de forma incremental."""
+        cursor = self.conn.cursor()
+        count = 0
+        
+        # 1. Falsos Positivos
+        for term in data.get("false_positive_terms", []):
+            cursor.execute("INSERT OR IGNORE INTO false_positive_terms (term) VALUES (?)", (term.upper(),))
+        
+        # 2. Cupones Positivos
+        for cp in data.get("positive_coupons", []):
+            # cp suele ser [code, tienda]
+            cursor.execute("INSERT OR IGNORE INTO positive_coupons (code, tienda) VALUES (?, ?)", (cp[0].upper(), cp[1]))
+            
+        # 3. Patrones de Aprendizaje
+        for p in data.get("learning_patterns", []):
+            cursor.execute('''
+                INSERT OR IGNORE INTO learning_patterns (tienda, patron, total_apariciones, exitosos, confianza)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (p['tienda'], p['patron'], p['total'], p['exitosos'], p['confianza']))
+            
+        # 4. Pesos de Keywords
+        for k in data.get("keyword_weights", []):
+            cursor.execute('''
+                INSERT OR IGNORE INTO keyword_weights (tienda, keyword, total_apariciones, exitosos, peso)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (k['tienda'], k['keyword'], k['total'], k['exitosos'], k['peso']))
+            
+        self.conn.commit()
+        return True
 
     def close(self):
         self.conn.close()

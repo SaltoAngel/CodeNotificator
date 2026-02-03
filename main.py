@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import messagebox
 import traceback
 
+import customtkinter as ctk
+
 from utils.logger import logger
 from database.db_manager import DatabaseManager
 from core.learning import SimpleLearningSystem
@@ -13,7 +15,11 @@ from ui.main_window import CouponNotifierApp
 
 def main():
     try:
-        root = tk.Tk()
+        # Configuración de CustomTkinter
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
+
+        root = ctk.CTk()
         db_path = os.path.join(os.path.dirname(__file__), 'notifications.db')
         db = DatabaseManager(db_path)
         learning_system = SimpleLearningSystem(db)
