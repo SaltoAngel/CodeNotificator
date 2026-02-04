@@ -2,6 +2,7 @@ import os
 import queue
 import threading
 import logging
+import platform
 import tkinter as tk
 from tkinter import ttk, messagebox
 import customtkinter as ctk
@@ -84,6 +85,15 @@ class CouponNotifierApp:
         style = ttk.Style()
         style.theme_use("default")
         
+        # Detectar sistema operativo para usar fuentes apropiadas
+        system = platform.system()
+        if system == "Windows":
+            ui_font = "Segoe UI"
+        elif system == "Darwin":  # macOS
+            ui_font = "SF Pro Display"
+        else:  # Linux y otros
+            ui_font = "DejaVu Sans"
+        
         # Colores personalizados para modo oscuro
         bg_color = "#2b2b2b"
         fg_color = "#ffffff"
@@ -96,7 +106,7 @@ class CouponNotifierApp:
                         fieldbackground=bg_color,
                         rowheight=30,
                         borderwidth=0,
-                        font=("Segoe UI", 10))
+                        font=(ui_font, 10))
         
         style.map("Treeview", background=[('selected', selected_color)])
         
@@ -104,7 +114,7 @@ class CouponNotifierApp:
                         background=header_color,
                         foreground=fg_color,
                         relief="flat",
-                        font=("Segoe UI", 10, "bold"))
+                        font=(ui_font, 10, "bold"))
         
         style.map("Treeview.Heading", background=[('active', "#444444")])
 
@@ -540,8 +550,8 @@ class CouponNotifierApp:
         win = ctk.CTkToplevel(self.root)
         win.title("Configuración Global")
         win.geometry("500x550")
-        win.after(100, lambda: [win.lift(), win.focus_force()])
-        win.grab_set()
+        # Mover grab_set() dentro del callback para evitar errores en Linux
+        win.after(100, lambda: [win.lift(), win.focus_force(), win.grab_set()])
 
         tabs = ctk.CTkTabview(win)
         tabs.pack(fill="both", expand=True, padx=20, pady=20)
@@ -683,7 +693,10 @@ class CouponNotifierApp:
         t_pc = tabs.add("Cupones Estrella")
 
         def create_list_manager(parent, items_fetcher, adder, remover):
-            listbox = tk.Listbox(parent, bg="#1a1a1a", fg="white", borderwidth=0, font=("Segoe UI", 10))
+            # Usar fuente compatible con Linux
+            system = platform.system()
+            list_font = "DejaVu Sans" if system == "Linux" else ("Segoe UI" if system == "Windows" else "Helvetica")
+            listbox = tk.Listbox(parent, bg="#1a1a1a", fg="white", borderwidth=0, font=(list_font, 10))
             listbox.pack(fill="both", expand=True, pady=10)
             
             entry = ctk.CTkEntry(parent, placeholder_text="Añadir nuevo valor...")
@@ -733,8 +746,8 @@ class CouponNotifierApp:
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("Confirmar y Entrenar IA")
         dialog.geometry("450x400")
-        dialog.after(100, lambda: [dialog.lift(), dialog.focus_force()])
-        dialog.grab_set()
+        # Mover grab_set() dentro del callback para evitar errores en Linux
+        dialog.after(100, lambda: [dialog.lift(), dialog.focus_force(), dialog.grab_set()])
 
         ctk.CTkLabel(dialog, text="Refina los datos para entrenar a la IA:", font=ctk.CTkFont(weight="bold")).pack(pady=15)
 
