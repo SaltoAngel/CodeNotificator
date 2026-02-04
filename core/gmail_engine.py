@@ -10,6 +10,7 @@ import validators
 from utils.logger import logger
 from core.ocr_engine import ocr_image_bytes, ocr_images_parallel
 from core.extractor import CouponExtractor
+from core.nlp_engine import ContextAnalyzer
 
 DEFAULT_TIMEZONE = 'America/Caracas'
 
@@ -113,6 +114,7 @@ class GmailOCRProcessor:
         self.db = db_manager
         self.learning_system = learning_system
         self.extractor = CouponExtractor(db_manager, learning_system)
+        self.nlp = ContextAnalyzer()
         self.service = None
         self.credentials = None
         self.last_auth = None
@@ -312,7 +314,19 @@ class GmailOCRProcessor:
                     if tienda_from_email and tienda_from_email != 'Desconocida':
                         coupon_info['tienda'] = tienda_from_email
 
+                    # Análisis de NLP
+                    nlp_analysis = self.nlp.analyze(subject, body_text[:2000]) # Analizar primeros 2000 chars
+                    logger.info(f"NLP Score para '{subject[:30]}...': {nlp_analysis}")
+
                     confidence = coupon_info.get('confianza_contexto', 0.7)
+                    
+                    # Reforzar confianza con NLP
+                    confidence = (confidence * 0.6) + (nlp_analysis['relevance_score'] * 0.4)
+                    
+                    if nlp_analysis['is_urgent']:
+                        logger.info("🔥 Cupón urgente detectado")
+                        # Podríamos agregar un marcador visual en el futuro
+
                     if self.learning_system:
                         learned = self.learning_system.calculate_confidence(
                             coupon_info['codigo'], coupon_info['tienda'], contexto=body_text

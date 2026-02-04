@@ -339,8 +339,12 @@ class CouponNotifierApp:
         
         selection = tree.selection()
         if selection:
+            # Obtener valores para la UI (como el logo)
             values = tree.item(selection[0], "values")
-            self.selected_cupon_id = int(values[0])
+            
+            # La selección devuelve el IID (que es el ID de la BD), usarlo para operaciones de BD
+            self.selected_cupon_id = int(selection[0])
+            
             self.valid_btn.configure(state="normal")
             self.invalid_btn.configure(state="normal")
             self.expired_btn.configure(state="normal")
