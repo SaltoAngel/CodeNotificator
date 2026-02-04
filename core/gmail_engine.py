@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import re
+from html import unescape
 from datetime import datetime
 
 # Añadir el directorio raíz al PATH para permitir ejecuciones directas del script
@@ -128,6 +129,10 @@ class GmailOCRProcessor:
 
         self.trusted_sender_domains = {"hollister.com"}
         self.trusted_sender_bonus = 0.15
+        self.ocr_mode = "default"
+
+    def set_ocr_mode(self, mode):
+        self.ocr_mode = (mode or "default").lower()
 
     def _extract_sender_email(self, from_header):
         if not from_header:
@@ -217,10 +222,12 @@ class GmailOCRProcessor:
 
         max_workers = min(4, os.cpu_count() or 1)
         try:
-            return ocr_images_parallel(images_data, max_workers=max_workers)
+            results = ocr_images_parallel(images_data, max_workers=max_workers, mode=self.ocr_mode)
         except Exception as e:
             logger.error(f"Error en OCR paralelo: {e}")
-            return [ocr_image_bytes(data) for data in images_data]
+            results = [ocr_image_bytes(data, mode=self.ocr_mode) for data in images_data]
+
+        return results
 
     def extract_store_name_from_sender(self, from_header):
         if not from_header:
@@ -311,6 +318,21 @@ class GmailOCRProcessor:
             email_content = get_email_content(message.get('payload', {}))
             body_text = email_content['text']
             body_html = email_content['html']
+
+            def _html_to_text(html_content):
+                if not html_content:
+                    return ""
+                # Quitar tags y normalizar espacios
+                text = re.sub(r'<[^>]+>', ' ', html_content)
+                text = unescape(text)
+                text = re.sub(r'\s+', ' ', text)
+                return text.strip()
+
+            html_text = _html_to_text(body_html)
+            if body_text:
+                body_text = f"{body_text}\n{html_text}" if html_text else body_text
+            else:
+                body_text = html_text
             
             # Preparar datos para el extractor inteligente (Waterfall)
             email_data = {
@@ -320,34 +342,53 @@ class GmailOCRProcessor:
                 'asunto': subject
             }
 
-            # 1 & 2: Metadatos y Regex (Métodos rápidos)
-            result = self.extractor.extraer_cupon_inteligente(email_data)
-            
-            # 3. FALLBACK: OCR (Solo si no se encontró nada antes)
-            if not result:
+            force_ocr = self.ocr_mode in ("tesseract", "easyocr", "google")
+
+            # 1 & 2: Metadatos y Regex (Métodos rápidos) solo en modo default
+            result = None
+            if not force_ocr:
+                result = self.extractor.extraer_cupon_inteligente(email_data)
+
+            # OCR (forzado si el modo no es default, fallback si default)
+            if force_ocr or not result:
                 images_data = []
                 extract_images(message.get('payload', {}), images_data)
 
                 if images_data:
-                    logger.info(f"📸 Iniciando OCR Fallback para {len(images_data)} imágenes...")
+                    logger.info(f"📸 Iniciando OCR {'FORZADO' if force_ocr else 'Fallback'} para {len(images_data)} imágenes...")
                     ocr_texts = self.extract_texts_parallel(images_data)
                     combined_ocr_text = "\n".join([t for t in ocr_texts if t])
                     
                     if combined_ocr_text:
-                        # Procesar texto recolectado por OCR
-                        info = self.extractor.extract_coupon_info(combined_ocr_text, tienda_from_email)
+                        # Procesar texto recolectado por OCR usando términos conocidos de la DB para Fuzzy Matching
+                        known_terms = self.db.get_all_positive_terms()
+                        
+                        # Detectar si viene de Cloud Vision por el marcador
+                        is_cloud = combined_ocr_text.startswith("[CLOUD_VISION]")
+                        clean_ocr_text = combined_ocr_text.replace("[CLOUD_VISION] ", "")
+                        
+                        info = self.extractor.extract_coupon_info(clean_ocr_text, tienda_from_email, known_terms=known_terms)
                         if info['codigo'] and info['codigo'] != '[OFERTA DIRECTA]':
+                            metodo = 'Nube (Google)' if is_cloud else f"OCR ({self.ocr_mode})"
                             result = {
                                 'codigo': info['codigo'],
                                 'tienda': info['tienda'],
                                 'descuento': info['descuento'],
                                 'confianza': info.get('confianza_contexto', 0.5),
-                                'metodo': 'Baja (OCR)',
+                                'score': info.get('score', info.get('confianza_contexto', 0.5)),
+                                'metodo': metodo,
                                 'fecha_expiracion': info.get('fecha_expiracion'),
                                 'url': info.get('url'),
                                 'is_ocr': True,
+                                'is_cloud': is_cloud,
                                 'ocr_context': info.get('contexto', '')[:300]
                             }
+                else:
+                    logger.info("OCR omitido: no hay imágenes en el correo")
+
+            # Fallback final: si OCR forzado no encontró nada, intentar extractor
+            if force_ocr and not result:
+                result = self.extractor.extraer_cupon_inteligente(email_data)
 
             if result and result['codigo']:
                 coupon_info = result
@@ -417,27 +458,41 @@ class GmailOCRProcessor:
             emails = self.search_emails(query=query, max_results=max_emails)
             all_coupons = []
             rows_to_insert = []
-            processed_codes = set()
 
             for i, email in enumerate(emails, 1):
                 coupons = self.process_email(email['id'])
                 for coupon in coupons:
                     code = coupon['codigo']
-                    if code not in processed_codes and not self.db.notification_exists(code):
-                        processed_codes.add(code)
-                        rows_to_insert.append((
-                            code,
-                            coupon['tienda'],
-                            coupon['url'],
-                            coupon.get('descuento'),
-                            coupon.get('confianza', 0.5),
-                            coupon.get('contexto'),
-                            coupon.get('id_correo'),
-                            coupon.get('asunto'),
-                            coupon.get('fecha'),
-                            coupon.get('fecha_expiracion')
-                        ))
-                        all_coupons.append(coupon)
+                    email_id = coupon.get('id_correo')
+                    if not code:
+                        continue
+
+                    # No repetir cupón del mismo correo exacto
+                    if self.db.notification_exists_for_email(code, email_id):
+                        continue
+
+                    # No repetir falsos positivos
+                    if self.db.is_false_positive_term(code):
+                        continue
+
+                    # Solo repetir si ya fue validado previamente
+                    if self.db.notification_exists(code) and not self.db.is_positive_coupon(code, coupon.get('tienda')):
+                        continue
+
+                    rows_to_insert.append((
+                        code,
+                        coupon['tienda'],
+                        coupon['url'],
+                        coupon.get('descuento'),
+                        coupon.get('confianza', 0.5),
+                        coupon.get('contexto'),
+                        coupon.get('id_correo'),
+                        coupon.get('asunto'),
+                        coupon.get('fecha'),
+                        coupon.get('fecha_expiracion'),
+                        coupon.get('score', coupon.get('confianza', 0.5))
+                    ))
+                    all_coupons.append(coupon)
 
             if rows_to_insert:
                 self.db.add_notifications_bulk(rows_to_insert)

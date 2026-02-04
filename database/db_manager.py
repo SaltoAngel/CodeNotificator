@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from datetime import datetime
 
 DEFAULT_SEARCH_QUERY = ''
 DEFAULT_SEARCH_KEYWORDS = ''
@@ -67,7 +68,12 @@ class DatabaseManager:
             ('key_valid', 'TEXT'),
             ('key_discard', 'TEXT'),
             ('key_expired', 'TEXT'),
-            ('key_scan', 'TEXT')
+            ('key_scan', 'TEXT'),
+            ('ocr_mode', 'TEXT'),
+            ('vision_quota', 'INTEGER'),
+            ('vision_usage', 'INTEGER'),
+            ('vision_usage_month', 'TEXT'),
+            ('score_threshold', 'REAL')
         ]
 
         # Verificar y agregar columnas en notifications si no existen
@@ -87,11 +93,14 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE notifications ADD COLUMN es_valido INTEGER DEFAULT 1")
         if 'confianza' not in notif_cols:
             cursor.execute("ALTER TABLE notifications ADD COLUMN confianza REAL DEFAULT 0.5")
+        if 'score' not in notif_cols:
+            cursor.execute("ALTER TABLE notifications ADD COLUMN score REAL DEFAULT 0.0")
         
         # Asegurar que no haya valores NULL en las nuevas columnas para que el filtrado funcione
         cursor.execute("UPDATE notifications SET usuario_valido = 0 WHERE usuario_valido IS NULL")
         cursor.execute("UPDATE notifications SET es_valido = 1 WHERE es_valido IS NULL")
         cursor.execute("UPDATE notifications SET confianza = 0.5 WHERE confianza IS NULL")
+        cursor.execute("UPDATE notifications SET score = 0.0 WHERE score IS NULL")
 
         for col_name, col_type in columnas_a_agregar:
             if col_name not in cols:
@@ -110,6 +119,21 @@ class DatabaseManager:
             "UPDATE config SET max_emails = ? WHERE id = 1 AND (max_emails IS NULL OR max_emails < 1)",
             (DEFAULT_MAX_EMAILS,)
         )
+        cursor.execute(
+            "UPDATE config SET ocr_mode = 'default' WHERE id = 1 AND (ocr_mode IS NULL OR ocr_mode = '')"
+        )
+        cursor.execute(
+            "UPDATE config SET vision_quota = 0 WHERE id = 1 AND vision_quota IS NULL"
+        )
+        cursor.execute(
+            "UPDATE config SET vision_usage = 0 WHERE id = 1 AND vision_usage IS NULL"
+        )
+        cursor.execute(
+            "UPDATE config SET vision_usage_month = ? WHERE id = 1 AND (vision_usage_month IS NULL OR vision_usage_month = '')",
+            (datetime.utcnow().strftime("%Y-%m"),)
+        )
+        cursor.execute(
+            "UPDATE config SET score_threshold = 0.30 WHERE id = 1 AND (score_threshold IS NULL OR score_threshold <= 0)")
         
         # Atajos por defecto si no existen
         defaults = [('key_valid', 'v'), ('key_discard', 'x'), ('key_expired', 'e'), ('key_scan', 's')]
@@ -176,6 +200,16 @@ class DatabaseManager:
             )
         ''')
 
+        # Tabla de experiencia (historial de puntos)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS experience_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                points INTEGER NOT NULL,
+                reason TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         self.conn.commit()
         logger.info("Tablas de base de datos creadas/verificadas")
 
@@ -214,17 +248,50 @@ class DatabaseManager:
         )
         self.conn.commit()
 
-    def add_notification(self, cupon, tienda, url, descuento=None, confianza=0.5, contexto=None, id_correo=None, asunto=None, fecha=None, fecha_expiracion=None):
+    def _current_month_key(self):
+        return datetime.utcnow().strftime("%Y-%m")
+
+    def _ensure_vision_month(self):
+        config = self.get_config()
+        current_month = self._current_month_key()
+        if config and config.get('vision_usage_month') != current_month:
+            self.update_config(vision_usage=0, vision_usage_month=current_month)
+
+    def increment_vision_usage(self, count=1):
+        if not count or count <= 0:
+            return
+        self._ensure_vision_month()
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE config SET vision_usage = COALESCE(vision_usage, 0) + ? WHERE id = 1",
+            (count,)
+        )
+        self.conn.commit()
+
+    def get_vision_quota_status(self):
+        self._ensure_vision_month()
+        config = self.get_config() or {}
+        quota = config.get('vision_quota') or 0
+        usage = config.get('vision_usage') or 0
+        remaining = max(quota - usage, 0) if quota > 0 else None
+        return {
+            "quota": quota,
+            "usage": usage,
+            "remaining": remaining,
+            "month": config.get('vision_usage_month')
+        }
+
+    def add_notification(self, cupon, tienda, url, descuento=None, confianza=0.5, contexto=None, id_correo=None, asunto=None, fecha=None, fecha_expiracion=None, score=0.0):
         cursor = self.conn.cursor()
         if fecha:
             cursor.execute(
-                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha, fecha_expiracion)
+                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha, fecha_expiracion, score)
             )
         else:
             cursor.execute(
-                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion)
+                "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (cupon, tienda, url, descuento, confianza, contexto, id_correo, asunto, fecha_expiracion, score)
             )
         self.conn.commit()
         logger.info(f"Cupón agregado: {cupon} - {tienda} (confianza: {confianza:.2f})")
@@ -235,7 +302,7 @@ class DatabaseManager:
             return 0
         cursor = self.conn.cursor()
         cursor.executemany(
-            "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO notifications (cupon, tienda, URL, descuento, confianza, contexto, id_correo, asunto, Fecha, fecha_expiracion, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows
         )
         self.conn.commit()
@@ -246,6 +313,16 @@ class DatabaseManager:
         cursor.execute(
             "SELECT 1 FROM notifications WHERE cupon = ? LIMIT 1",
             (cupon,)
+        )
+        return cursor.fetchone() is not None
+
+    def notification_exists_for_email(self, cupon, id_correo):
+        if not cupon or not id_correo:
+            return False
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM notifications WHERE cupon = ? AND id_correo = ? LIMIT 1",
+            (cupon, id_correo),
         )
         return cursor.fetchone() is not None
 
@@ -295,6 +372,12 @@ class DatabaseManager:
         # Restaurar factory y convertir a dicts
         self.conn.row_factory = orig_factory
         return [dict(r) for r in rows]
+
+    def get_notifications_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM notifications")
+        row = cursor.fetchone()
+        return row[0] if row else 0
 
     def get_notification_by_id(self, cupon_id):
         cursor = self.conn.cursor()
@@ -482,6 +565,77 @@ class DatabaseManager:
         pattern_stats = cursor.fetchone()
 
         return feedback_stats, pattern_stats
+
+    def add_experience(self, points, reason=""):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO experience_log (points, reason) VALUES (?, ?)",
+            (int(points), reason)
+        )
+        self.conn.commit()
+
+    def get_experience_history(self, limit=50):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT points, reason, created_at FROM experience_log ORDER BY created_at DESC LIMIT ?",
+            (limit,)
+        )
+        return cursor.fetchall()
+
+    def get_experience_total(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COALESCE(SUM(points), 0) FROM experience_log")
+        row = cursor.fetchone()
+        total = row[0] if row else 0
+        return max(total, 0)
+
+    def get_coupon_score_stats(self, limit=50):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
+            SELECT 
+                n.cupon,
+                n.tienda,
+                AVG(n.score) as avg_score,
+                COUNT(*) as total,
+                (
+                    SELECT score FROM notifications n2
+                    WHERE n2.cupon = n.cupon AND n2.tienda = n.tienda
+                    ORDER BY datetime(n2.Fecha) DESC, n2.id DESC
+                    LIMIT 1
+                ) as last_score,
+                (
+                    SELECT score FROM notifications n3
+                    WHERE n3.cupon = n.cupon AND n3.tienda = n.tienda
+                    ORDER BY datetime(n3.Fecha) DESC, n3.id DESC
+                    LIMIT 1 OFFSET 1
+                ) as prev_score,
+                (
+                    SELECT estado FROM notifications n4
+                    WHERE n4.cupon = n.cupon AND n4.tienda = n.tienda
+                    ORDER BY datetime(n4.Fecha) DESC, n4.id DESC
+                    LIMIT 1
+                ) as last_estado,
+                (
+                    SELECT usuario_valido FROM notifications n5
+                    WHERE n5.cupon = n.cupon AND n5.tienda = n.tienda
+                    ORDER BY datetime(n5.Fecha) DESC, n5.id DESC
+                    LIMIT 1
+                ) as last_usuario_valido,
+                (
+                    SELECT es_valido FROM notifications n6
+                    WHERE n6.cupon = n.cupon AND n6.tienda = n.tienda
+                    ORDER BY datetime(n6.Fecha) DESC, n6.id DESC
+                    LIMIT 1
+                ) as last_es_valido
+            FROM notifications n
+            GROUP BY n.cupon, n.tienda
+            ORDER BY avg_score DESC, total DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+        return cursor.fetchall()
 
     def update_keyword_weight(self, tienda, keyword, es_valido):
         cursor = self.conn.cursor()

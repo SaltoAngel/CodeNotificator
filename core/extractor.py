@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.logger import logger
+from core.ocr_engine import apply_fuzzy_correction
 
 class CouponExtractor:
     def __init__(self, db_manager, learning_system=None):
@@ -38,6 +39,11 @@ class CouponExtractor:
             "WHATSAPP", "FACEBOOK", "INSTAGRAM", "TWITTER", "YOUTUBE",
             "LOGIN", "INICIAR", "SESION", "ACCOUNT", "CUENTA", "PASSWORD",
             "IMG", "JPG", "PNG", "GIF", "HTML", "PHP", "ASPX",
+            "DOCTYPE", "XHTML", "HEAD", "BODY", "DIV", "SPAN", "SECTION",
+            "ARTICLE", "HEADER", "FOOTER", "NAV", "ASIDE", "MAIN",
+            "SCRIPT", "STYLE", "META", "LINK", "IFRAME", "SVG", "PATH",
+            "VIEWBOX", "HREF", "SRC", "ALT", "TITLE", "CLASS", "ID",
+            "WIDTH", "HEIGHT", "ARIA", "DATA", "REL", "TARGET", "BUTTON",
             "TRACK", "SEGUIR", "PAQUETE", "PACKAGE", "DELIVERY", "ENTREGA"
         }
         self.months_map = {
@@ -48,6 +54,14 @@ class CouponExtractor:
             'ENERO': 1, 'FEBRERO': 2, 'MARZO': 3, 'ABRIL': 4, 'MAYO': 5, 'JUNIO': 6,
             'JULIO': 7, 'AGOSTO': 8, 'SEPTIEMBRE': 9, 'OCTUBRE': 10, 'NOVIEMBRE': 11, 'DICIEMBRE': 12
         }
+        self.min_score_threshold = 0.30
+        try:
+            config = self.db.get_config() or {}
+            threshold = config.get('score_threshold', 0.30)
+            if threshold:
+                self.min_score_threshold = float(threshold)
+        except Exception:
+            pass
 
     def extraer_cupon_inteligente(self, email_data):
         """
@@ -65,6 +79,7 @@ class CouponExtractor:
                 'tienda': tienda,
                 'descuento': desc or "Descuento en Metadatos",
                 'confianza': 1.0,
+                'score': 1.0,
                 'metodo': 'Alta (Metadata)'
             }
 
@@ -78,6 +93,7 @@ class CouponExtractor:
                     'tienda': info['tienda'],
                     'descuento': info['descuento'],
                     'confianza': info.get('confianza_contexto', 0.8),
+                    'score': info.get('score', info.get('confianza_contexto', 0.8)),
                     'metodo': 'Media (Regex)',
                     'fecha_expiracion': info.get('fecha_expiracion'),
                     'url': info.get('url')
@@ -123,7 +139,7 @@ class CouponExtractor:
                 
         return None, None
 
-    def extract_coupon_info(self, text, tienda_from_sender=None):
+    def extract_coupon_info(self, text, tienda_from_sender=None, known_terms=None):
         info = {
             'codigo': '',
             'tienda': 'Desconocida',
@@ -133,12 +149,30 @@ class CouponExtractor:
             'fecha_expiracion': None
         }
 
+        # Corrección Difusa si se detecta que es texto de OCR (muchas inconsistencias)
+        if known_terms and (len(re.findall(r'[A-Z]', text)) < len(re.findall(r'[0-9]', text)) * 0.5):
+            text = apply_fuzzy_correction(text, known_terms)
+
         if tienda_from_sender and tienda_from_sender != 'Desconocida':
             info['tienda'] = tienda_from_sender
 
-        desc_matches = re.findall(r'(\d{1,3}(?:[,.]\d{1,2})?)%', text)
-        if desc_matches:
-            info['descuento'] = f"{max(desc_matches, key=lambda x: float(x.replace(',', '.')))}%"
+        percent_values = re.findall(r'(\d{1,3}(?:[,.]\d{1,2})?)%', text)
+        if percent_values:
+            info['descuento'] = f"{max(percent_values, key=lambda x: float(x.replace(',', '.')))}%"
+
+        money_matches = []
+        money_patterns = [
+            r'(?i)(?:USD|US\$|\$)\s*(\d{1,4}(?:[,.]\d{1,2})?)',
+            r'(?i)(\d{1,4}(?:[,.]\d{1,2})?)\s*(?:USD|US\$|DOLARES|DÓLARES|DOLLARS)',
+            r'(?i)(\d{1,4}(?:[,.]\d{1,2})?)\s*\$'
+        ]
+        for pattern in money_patterns:
+            for m in re.finditer(pattern, text):
+                val = m.group(1).replace(',', '.')
+                money_matches.append({
+                    'val': f"${val}",
+                    'start': m.start(1)
+                })
 
         url_spans = []
         for m in re.finditer(r'https?://[^\s]+', text):
@@ -180,6 +214,7 @@ class CouponExtractor:
             best = candidates[0]
             info['codigo'] = best['code']
             info['confianza_contexto'] = best['confidence']
+            info['score'] = best['confidence']
 
             # Refinar descuento por proximidad al mejor código
             desc_matches_with_pos = []
@@ -188,18 +223,29 @@ class CouponExtractor:
                     'val': f"{m.group(1)}%",
                     'dist': abs(m.start() - best['start'])
                 })
+            for item in money_matches:
+                desc_matches_with_pos.append({
+                    'val': item['val'],
+                    'dist': abs(item['start'] - best['start'])
+                })
             
             if desc_matches_with_pos:
                 close_descs = [d for d in desc_matches_with_pos if d['dist'] < 120]
                 if close_descs:
                     info['descuento'] = min(close_descs, key=lambda x: x['dist'])['val']
-                elif desc_matches:
-                    info['descuento'] = f"{max(desc_matches, key=lambda x: float(x.replace(',', '.')))}%"
-        elif desc_matches:
+                elif percent_values:
+                    info['descuento'] = f"{max(percent_values, key=lambda x: float(x.replace(',', '.')))}%"
+                elif money_matches:
+                    info['descuento'] = max(money_matches, key=lambda x: float(x['val'].replace('$', '')))['val']
+        elif percent_values or money_matches:
             # Si no hay código pero sí descuentos, capturamos como oferta directa
             info['codigo'] = '[OFERTA DIRECTA]'
             info['confianza_contexto'] = 0.4 # Confianza baja por ser incompleto
-            info['descuento'] = f"{max(desc_matches, key=lambda x: float(x.replace(',', '.')))}%"
+            info['score'] = 0.4
+            if percent_values:
+                info['descuento'] = f"{max(percent_values, key=lambda x: float(x.replace(',', '.')))}%"
+            else:
+                info['descuento'] = max(money_matches, key=lambda x: float(x['val'].replace('$', '')))['val']
 
         valid_urls = []
         for _, _, url in url_spans:
@@ -260,7 +306,7 @@ class CouponExtractor:
         best_code = None
         best_conf = -1
 
-        for variant in self._generate_ocr_variants(code):
+        for variant in self._generate_ocr_variants(code, tienda=tienda):
             if self._is_blacklisted(variant):
                 continue
             if self.db.is_false_positive_term(variant):
@@ -284,7 +330,17 @@ class CouponExtractor:
                 base_conf = self.learning_system.calculate_confidence(variant, tienda, contexto=text)
 
             context_score = self._calculate_context_score(text, start_idx, end_idx, code=variant)
-            final_conf = min(max(base_conf + context_score, 0.1), 0.99)
+            rule_score = self.score_candidate(variant, text, start_idx, end_idx)
+
+            # Normalizar y ponderar para evitar saturación
+            base_norm = min(max(base_conf, 0.0), 1.0)
+            context_norm = min(max((context_score + 1.0) / 2.0, 0.0), 1.0)
+            rule_norm = min(max((rule_score + 1.0) / 2.0, 0.0), 1.0)
+
+            final_conf = (base_norm * 0.5) + (context_norm * 0.3) + (rule_norm * 0.2)
+
+            if final_conf < self.min_score_threshold:
+                continue
 
             if self.db.is_positive_coupon(variant):
                 final_conf = min(final_conf + 0.25, 0.99)
@@ -298,21 +354,120 @@ class CouponExtractor:
 
         return best_code, best_conf
 
-    def _generate_ocr_variants(self, code):
+    def score_candidate(self, candidate, text, start_idx, end_idx):
+        """Score adicional basado en reglas. Retorna un valor entre -1.0 y 1.0."""
+        score = 0.0
+        cand_up = candidate.upper()
+
+        # Filtro radical: blacklist
+        if self._is_blacklisted(cand_up) or len(candidate) < 3:
+            return -1.0
+
+        # Bonus por mayúsculas
+        if candidate.isupper():
+            score += 0.10
+
+        # Bonus por formato alfanumérico
+        if any(c.isdigit() for c in candidate) and any(c.isalpha() for c in candidate):
+            score += 0.30
+
+        # Contexto cercano
+        window = 40
+        context_start = max(0, start_idx - window)
+        context_end = min(len(text), end_idx + window)
+        context = text[context_start:context_end].upper()
+
+        if any(k in context for k in self.positive_context_keywords):
+            score += 0.40
+
+        if any(k in context for k in self.negative_context_keywords):
+            score -= 0.50
+
+        # Limitar rango
+        return max(min(score, 1.0), -1.0)
+
+    def set_score_threshold(self, value):
+        try:
+            value = float(value)
+        except Exception:
+            return
+        if value <= 0:
+            return
+        self.min_score_threshold = value
+
+    def _generate_ocr_variants(self, code, tienda=None):
+        apply_homoglyphs = self._should_apply_homoglyphs(tienda)
         variants = {code}
+        if apply_homoglyphs:
+            variants.add(self._normalize_homoglyphs(code))
         if '0' in code or 'O' in code:
             variants.add(code.replace('0', 'O'))
             variants.add(code.replace('O', '0'))
         if '1' in code or 'I' in code:
             variants.add(code.replace('1', 'I'))
             variants.add(code.replace('I', '1'))
+        # Normalizar homoglifos en todas las variantes si aplica
+        if apply_homoglyphs:
+            normalized = {self._normalize_homoglyphs(v) for v in variants}
+            variants = variants.union(normalized)
         return list(variants)
+
+    def _should_apply_homoglyphs(self, tienda):
+        """Aplica corrección O/0 solo si el patrón aprendido es mayormente numérico."""
+        if not tienda:
+            return False
+        try:
+            best = self.db.get_best_pattern_for_store(tienda)
+            if not best:
+                return False
+            pattern = best.get('pattern', '')
+            if not pattern:
+                return False
+            numeric_markers = [
+                'DD', 'ALL_DIGITS', 'MOSTLY_DIGITS', 'DDDD', 'DDDDDD', 'LLDD', 'DDLL'
+            ]
+            return any(marker in pattern for marker in numeric_markers)
+        except Exception:
+            return False
+
+    def _normalize_homoglyphs(self, code):
+        """Corrige O/0 cuando hay contexto numérico."""
+        if not code:
+            return code
+        fixed = re.sub(r'(?<=\d)O(?=\d)', '0', code)
+        fixed = re.sub(r'(?<=\d)O', '0', fixed)
+        fixed = re.sub(r'O(?=\d)', '0', fixed)
+        return fixed
 
     def _is_blacklisted(self, code):
         code_upper = code.upper()
+        if self._looks_like_html_noise(code_upper):
+            return True
         if code_upper in self.blacklist_words:
             return True
         return any(word in code_upper for word in self.blacklist_words)
+
+    def _looks_like_html_noise(self, code_upper):
+        html_tokens = {
+            "HTML", "XHTML", "HEAD", "BODY", "DIV", "SPAN", "SECTION", "ARTICLE",
+            "HEADER", "FOOTER", "NAV", "ASIDE", "MAIN", "SCRIPT", "STYLE",
+            "META", "LINK", "IFRAME", "SVG", "PATH", "VIEWBOX", "HREF",
+            "SRC", "ALT", "TITLE", "CLASS", "ID", "WIDTH", "HEIGHT",
+            "ARIA", "DATA", "REL", "TARGET", "BUTTON"
+        }
+
+        if code_upper in html_tokens:
+            return True
+
+        # Atributos típicos: data-*, aria-*
+        if code_upper.startswith("DATA") or code_upper.startswith("ARIA"):
+            return True
+
+        # Tokens tipo HTML (solo letras, muy cortos, típicos de etiquetas)
+        if code_upper.isalpha() and len(code_upper) <= 5 and code_upper in html_tokens:
+            return True
+
+        return False
 
     def _has_url_context(self, text, start_idx, end_idx):
         window = 40

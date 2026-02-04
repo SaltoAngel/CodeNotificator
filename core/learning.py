@@ -188,6 +188,14 @@ class SimpleLearningSystem:
         if es_valido:
             self.pattern_cache[cache_key]['success'] += 1
 
+        # Registrar experiencia
+        try:
+            points = 10 if es_valido else -6
+            reason = f"{'Validado' if es_valido else 'Descartado'}: {cupon_text}"
+            self.db.add_experience(points, reason)
+        except Exception:
+            pass
+
         logger.info(f"Aprendizaje: {cupon_text} -> {patron} ({'válido' if es_valido else 'inválido'})")
 
     def get_stats(self):

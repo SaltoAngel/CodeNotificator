@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Añadir el directorio raíz al path para evitar ModuleNotFoundError
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import queue
 import threading
 import logging
@@ -9,6 +14,7 @@ import customtkinter as ctk
 import webbrowser
 from datetime import datetime, timedelta
 from utils.logo_manager import LogoManager
+from utils.config_helper import generar_pdf_instrucciones, verificar_dependencias_ocr
 
 try:
     import pystray
@@ -55,9 +61,17 @@ class CouponNotifierApp:
         self.processor = processor
         self.notifier = notifier
 
+        # Modo OCR desde configuración
+        try:
+            config = self.db.get_config() or {}
+            self.processor.set_ocr_mode(config.get("ocr_mode", "default"))
+        except Exception:
+            self.processor.set_ocr_mode("default")
+
         self.queue = queue.Queue()
         self.scanning = False
         self.selected_cupon_id = None
+        self.current_tree = None
         self.tray_icon = None
         self.tray_thread = None
         
@@ -156,9 +170,21 @@ class CouponNotifierApp:
         
         self.btn_dict = create_sidebar_btn("📚 REGLAS", self.open_dictionary_manager)
         self.btn_config = create_sidebar_btn("⚙️ CONFIG", self.open_config)
+        self.btn_help = create_sidebar_btn("❓ AYUDA PDF", self.generate_help_pdf)
         self.btn_export = create_sidebar_btn("📥 EXPORTAR", self.export_to_csv)
         
         self.btn_clear = create_sidebar_btn("🗑️ LIMPIAR", self.clear_old_coupons, "#f38ba8")
+
+        # 1.1 Indicadores de Salud OCR (Sidebar)
+        self.health_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.health_frame.pack(side="bottom", fill="x", padx=10, pady=20)
+        
+        self.tess_label = ctk.CTkLabel(self.health_frame, text="• Tesseract: ...", font=ctk.CTkFont(size=10), anchor="w")
+        self.tess_label.pack(fill="x")
+        self.vision_label = ctk.CTkLabel(self.health_frame, text="• Cloud Vision: ...", font=ctk.CTkFont(size=10), anchor="w")
+        self.vision_label.pack(fill="x")
+        
+        self.health_frame.after(1000, self.update_ocr_health)
 
         # 2. CONTENEDOR PRINCIPAL
         self.main_container = ctk.CTkFrame(self.root, corner_radius=0, fg_color="#181825")
@@ -214,7 +240,7 @@ class CouponNotifierApp:
         # Se inicia oculto, se muestra al seleccionar un cupón
         # self.detail_panel.grid(row=0, column=2, sticky="nsew") 
 
-        ctk.CTkLabel(self.detail_panel, text="DETalles DEL CUPÓN", font=ctk.CTkFont(size=14, weight="bold"),
+        ctk.CTkLabel(self.detail_panel, text="Detalles del Cupón", font=ctk.CTkFont(size=14, weight="bold"),
                       text_color="#cba6f7").pack(pady=20, padx=20)
 
         self.logo_panel = ctk.CTkLabel(self.detail_panel, text="🏢", width=80, height=80, font=ctk.CTkFont(size=40))
@@ -278,6 +304,7 @@ class CouponNotifierApp:
         self.val_code = add_info_row("CÓDIGO")
         self.val_desc = add_info_row("DESCUENTO")
         self.val_conf = add_info_row("CONFIANZA IA")
+        self.val_score = add_info_row("SCORE")
         self.val_date = add_info_row("DETECTADO")
         self.val_exp = add_info_row("EXPIRA")
 
@@ -285,10 +312,24 @@ class CouponNotifierApp:
         container = ctk.CTkFrame(parent, fg_color="transparent")
         container.pack(fill="both", expand=True)
 
-        columns = ("N°", "IA", "Cupón", "Tienda", "Asunto", "Descuento", "URL", "Confianza", "Fecha", "Expira")
+        # Leyenda de iconos y colores
+        legend = ctk.CTkFrame(container, fg_color="transparent")
+        legend.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(5, 0))
+        ctk.CTkLabel(legend, text="Leyenda:", text_color="gray").pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(legend, text="🤖 Auto", text_color="#cdd6f4").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="🧠 Validado", text_color="#cdd6f4").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="💎 Metadata", text_color="#cdd6f4").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="📷 OCR", text_color="#cdd6f4").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="Alta", text_color="#2ECC71").pack(side="left", padx=10)
+        ctk.CTkLabel(legend, text="Media", text_color="#F1C40F").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="Baja", text_color="#E74C3C").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="Validado prev.", text_color="#3498DB").pack(side="left", padx=6)
+        ctk.CTkLabel(legend, text="Falso", text_color="#95a5a6").pack(side="left", padx=6)
+
+        columns = ("N°", "IA", "Cupón", "Tienda", "Asunto", "Descuento", "Score", "URL", "Confianza", "Fecha", "Expira")
         tree = ttk.Treeview(container, columns=columns, show="headings", style="Treeview")
 
-        col_widths = [40, 50, 130, 120, 200, 80, 150, 80, 140, 140]
+        col_widths = [40, 50, 130, 120, 200, 80, 70, 150, 80, 140, 140]
         for col, width in zip(columns, col_widths):
             tree.heading(col, text=col)
             tree.column(col, width=width, anchor="center")
@@ -298,12 +339,12 @@ class CouponNotifierApp:
         hsb = ctk.CTkScrollbar(container, orientation="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
 
-        tree.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        hsb.grid(row=1, column=0, sticky="ew")
+        tree.grid(row=1, column=0, sticky="nsew")
+        vsb.grid(row=1, column=1, sticky="ns")
+        hsb.grid(row=2, column=0, sticky="ew")
 
         container.grid_columnconfigure(0, weight=1)
-        container.grid_rowconfigure(0, weight=1)
+        container.grid_rowconfigure(1, weight=1)
 
         # Tags para colores de confianza
         tree.tag_configure("conf_high", foreground="#2ECC71")
@@ -316,9 +357,21 @@ class CouponNotifierApp:
         tree.bind("<Double-Button-1>", self.show_details)
         tree.bind("<Button-3>", self.on_tree_right_click)
         
-        # Soporte para navegación con flechas
-        tree.bind("<Up>", lambda e: self.on_tree_select(e))
-        tree.bind("<Down>", lambda e: self.on_tree_select(e))
+        # Soporte para navegación con teclado avanzada
+        def arrow_handler(e):
+            # Si no hay selección, seleccionar el primero al bajar
+            if not tree.selection() and tree.get_children():
+                first = tree.get_children()[0]
+                tree.selection_set(first)
+                tree.focus(first)
+                tree.see(first)
+            
+            # Dejar que el Treeview procese el movimiento y luego actualizar panel
+            tree.after(10, self.on_tree_select)
+            
+        tree.bind("<Up>", arrow_handler)
+        tree.bind("<Down>", arrow_handler)
+        tree.bind("<Return>", lambda e: self.show_details())
 
         return tree
 
@@ -372,13 +425,14 @@ class CouponNotifierApp:
             self.invalid_btn.configure(state="normal")
             self.expired_btn.configure(state="normal")
             
-            # Actualizar labels de información (N°, IA, Cupón, Tienda, Asunto, Descuento, URL, Confianza, Fecha, Expira)
+            # Actualizar labels de información (N°, IA, Cupón, Tienda, Asunto, Descuento, Score, URL, Confianza, Fecha, Expira)
             self.val_store.configure(text=values[3])
             self.val_code.configure(text=values[2])
             self.val_desc.configure(text=values[5] or "Sin especificar")
-            self.val_conf.configure(text=f"{values[1]} {values[7]}")
-            self.val_date.configure(text=values[8])
-            self.val_exp.configure(text=values[9])
+            self.val_score.configure(text=values[6])
+            self.val_conf.configure(text=f"{values[1]} {values[8]}")
+            self.val_date.configure(text=values[9])
+            self.val_exp.configure(text=values[10])
 
             # Actualizar Logo
             self.update_store_logo(values)
@@ -401,7 +455,20 @@ class CouponNotifierApp:
             self.context_menu.tk_popup(event.x_root, event.y_root)
 
     # --- Acciones de Datos ---
-    def load_notifications(self):
+    def load_notifications(self, preserve_selection=True):
+        tree_with_focus = self.current_tree
+        selected_id = None
+        if preserve_selection and tree_with_focus:
+            selection = tree_with_focus.selection()
+            if selection:
+                # Buscamos el siguiente ID al que saltar si el actual va a desaparecer
+                all_ids = tree_with_focus.get_children()
+                current_index = all_ids.index(selection[0])
+                if current_index + 1 < len(all_ids):
+                    selected_id = all_ids[current_index + 1]
+                elif current_index - 1 >= 0:
+                    selected_id = all_ids[current_index - 1]
+
         for tree in self.trees.values():
             for item in tree.get_children():
                 tree.delete(item)
@@ -426,6 +493,14 @@ class CouponNotifierApp:
         self.count_label.configure(text=f"Total: {total} cupones encontrados")
         self.update_stats_display()
 
+        # Restaurar o mover selección
+        if preserve_selection and tree_with_focus and selected_id:
+            if tree_with_focus.exists(selected_id):
+                tree_with_focus.selection_set(selected_id)
+                tree_with_focus.see(selected_id)
+                tree_with_focus.focus(selected_id)
+                self.on_tree_select()
+
     def _fill_tree(self, tree, rows):
         for idx, row in enumerate(rows, 1):
             # Acceso por nombre de columna (row ya es un dict desde db_manager)
@@ -439,6 +514,7 @@ class CouponNotifierApp:
             usr_val = row.get('usuario_valido', 0)
             is_val = row.get('es_valido', 0)
             conf = row.get('confianza', 0.5)
+            score = row.get('score', None)
             date = row.get('Fecha', "")
             expira = row.get('fecha_expiracion', "")
             
@@ -459,11 +535,14 @@ class CouponNotifierApp:
                 ia_icon = "🧠" # Entrenado por humano
             elif row.get('metodo') == 'Metadata':
                 ia_icon = "💎" # Directo de Gmail
+            elif row.get('metodo') == 'Nube (Google)':
+                ia_icon = "☁️" # Rescatado por Google Cloud Vision
             elif row.get('is_ocr'):
-                ia_icon = "📷" # Vía OCR
+                ia_icon = "📷" # Vía OCR Local
 
+            score_text = f"{float(score):.2f}" if score is not None else "---"
             tree.insert("", "end", iid=str(cupon_id), values=(
-                idx, ia_icon, code, tienda, subject, desc, url, f"{conf:.0%}", date, expira or "---"
+                idx, ia_icon, code, tienda, subject, desc, score_text, url, f"{conf:.0%}", date, expira or "---"
             ), tags=(tag,))
 
     def update_store_logo(self, values):
@@ -638,29 +717,56 @@ class CouponNotifierApp:
 
         # General Tab
         config = self.db.get_config()
+
+        gen_frame = ctk.CTkScrollableFrame(t_gen)
+        gen_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Intervalo
-        ctk.CTkLabel(t_gen, text="Intervalo de escaneo automático:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
+        ctk.CTkLabel(gen_frame, text="Intervalo de escaneo automático:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
         interval_var = ctk.StringVar(value=str(config.get('intervalo_minutos', 30)))
-        ctk.CTkEntry(t_gen, textvariable=interval_var, width=150).pack(pady=5)
-        ctk.CTkLabel(t_gen, text="minutos", font=ctk.CTkFont(size=12)).pack(pady=(0, 15))
+        ctk.CTkEntry(gen_frame, textvariable=interval_var, width=150).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="minutos", font=ctk.CTkFont(size=12)).pack(pady=(0, 15))
         
         # Límite de Correos
-        ctk.CTkLabel(t_gen, text="Límite de correos por escaneo:", font=ctk.CTkFont(weight="bold")).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="Límite de correos por escaneo:", font=ctk.CTkFont(weight="bold")).pack(pady=5)
         limit_var = ctk.StringVar(value=str(config.get('max_emails', 50)))
-        ctk.CTkEntry(t_gen, textvariable=limit_var, width=150).pack(pady=5)
-        ctk.CTkLabel(t_gen, text="Cantidad de emails a revisar", font=ctk.CTkFont(size=11), text_color="gray").pack()
+        ctk.CTkEntry(gen_frame, textvariable=limit_var, width=150).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="Cantidad de emails a revisar", font=ctk.CTkFont(size=11), text_color="gray").pack()
+
+        # Modo OCR
+        ctk.CTkLabel(gen_frame, text="Modo OCR:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
+        ocr_mode_var = ctk.StringVar(value=config.get('ocr_mode', 'default'))
+        ctk.CTkOptionMenu(
+            gen_frame,
+            values=["default", "tesseract", "easyocr", "google"],
+            variable=ocr_mode_var
+        ).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="default = waterfall automático", font=ctk.CTkFont(size=11), text_color="gray").pack()
+
+        # Cuota Cloud Vision
+        ctk.CTkLabel(gen_frame, text="Cuota mensual Cloud Vision (opcional):", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
+        vision_quota_var = ctk.StringVar(value=str(config.get('vision_quota', 0) or 0))
+        ctk.CTkEntry(gen_frame, textvariable=vision_quota_var, width=150).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="0 = sin control. Se descuenta por uso de Vision.", font=ctk.CTkFont(size=11), text_color="gray").pack()
+
+        # Umbral de score (OCR/Regex)
+        ctk.CTkLabel(gen_frame, text="Umbral de score (0.10 - 0.90):", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 5))
+        score_threshold_var = ctk.StringVar(value=str(config.get('score_threshold', 0.30)))
+        ctk.CTkEntry(gen_frame, textvariable=score_threshold_var, width=150).pack(pady=5)
+        ctk.CTkLabel(gen_frame, text="Más alto = más estricto. Recomendado: 0.30", font=ctk.CTkFont(size=11), text_color="gray").pack()
+
+        ctk.CTkLabel(gen_frame, text="Google Vision deshabilitado temporalmente (sin billing).", font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(10, 0))
 
         # Respaldo de Inteligencia
-        ctk.CTkLabel(t_gen, text="Portabilidad de Datos (Cerebro IA):", font=ctk.CTkFont(weight="bold")).pack(pady=(25, 5))
-        f_backup = ctk.CTkFrame(t_gen, fg_color="transparent")
+        ctk.CTkLabel(gen_frame, text="Portabilidad de Datos (Cerebro IA):", font=ctk.CTkFont(weight="bold")).pack(pady=(25, 5))
+        f_backup = ctk.CTkFrame(gen_frame, fg_color="transparent")
         f_backup.pack(pady=5)
         
         ctk.CTkButton(f_backup, text="📦 EXPORTAR CEREBRO", width=160, 
                        command=self.export_brain, fg_color="#3498DB").pack(side="left", padx=5)
         ctk.CTkButton(f_backup, text="📥 IMPORTAR CEREBRO", width=160, 
                        command=self.import_brain, fg_color="#E67E22").pack(side="left", padx=5)
-        ctk.CTkLabel(t_gen, text="Exporta/Importa tus reglas, tiendas y bloqueos.", font=ctk.CTkFont(size=11), text_color="gray").pack()
+        ctk.CTkLabel(gen_frame, text="Exporta/Importa tus reglas, tiendas y bloqueos.", font=ctk.CTkFont(size=11), text_color="gray").pack()
 
         # Gmail Tab
         ctk.CTkLabel(t_gmail, text="Estado de Conexión", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=20)
@@ -710,9 +816,27 @@ class CouponNotifierApp:
                     messagebox.showerror("Error", "Cada atajo debe ser una única letra.")
                     return
 
+                # Validación OCR
+                ocr_mode = ocr_mode_var.get().strip().lower()
+                if ocr_mode not in ["default", "tesseract", "easyocr", "google"]:
+                    ocr_mode = "default"
+
+                vision_quota = int(vision_quota_var.get() or 0)
+                if vision_quota < 0:
+                    messagebox.showerror("Error", "La cuota de Cloud Vision no puede ser negativa.")
+                    return
+
+                score_threshold = float(score_threshold_var.get() or 0.30)
+                if score_threshold < 0.10 or score_threshold > 0.90:
+                    messagebox.showerror("Error", "El umbral debe estar entre 0.10 y 0.90.")
+                    return
+
                 self.db.update_config(
                     intervalo_minutos=int(interval_var.get()),
                     max_emails=int(limit_var.get()),
+                    ocr_mode=ocr_mode,
+                    vision_quota=vision_quota,
+                    score_threshold=score_threshold,
                     key_valid=k_valid_var.get().strip().lower(),
                     key_discard=k_discard_var.get().strip().lower(),
                     key_expired=k_expired_var.get().strip().lower(),
@@ -721,6 +845,14 @@ class CouponNotifierApp:
                 
                 # Re-vincular hotkeys inmediatamente
                 self.bind_hotkeys()
+
+                # Aplicar modo OCR y refrescar salud
+                self.processor.set_ocr_mode(ocr_mode)
+                try:
+                    self.processor.extractor.set_score_threshold(score_threshold)
+                except Exception:
+                    pass
+                self.update_ocr_health()
                 
                 messagebox.showinfo("Éxito", "Configuración y atajos guardados.")
                 win.destroy()
@@ -729,6 +861,56 @@ class CouponNotifierApp:
 
         btn_save = ctk.CTkButton(win, text="GUARDAR CAMBIOS", command=save, fg_color="#2ECC71")
         btn_save.pack(side="bottom", pady=20)
+
+    def generate_help_pdf(self):
+        """Genera el manual de configuración y abre la carpeta contenedora."""
+        dest = os.path.join(os.getcwd(), "Manual_Configuracion_OCR.pdf")
+        if generar_pdf_instrucciones(dest):
+            self.show_toast("PDF generado con éxito. 📄", "#2ECC71")
+            # Abrir el archivo automáticamente según el SO
+            try:
+                if platform.system() == "Windows":
+                    os.startfile(dest)
+                elif platform.system() == "Darwin": # macOS
+                    import subprocess
+                    subprocess.call(["open", dest])
+                else: # Linux
+                    import subprocess
+                    subprocess.call(["xdg-open", dest])
+            except Exception:
+                messagebox.showinfo("Ayuda", f"Manual generado en:\n{dest}")
+        else:
+            messagebox.showerror("Error", "No se pudo generar el manual PDF.")
+
+
+    def update_ocr_health(self):
+        """Verifica el estado de los motores OCR y actualiza los indicadores en la Sidebar."""
+        msg = ""
+        estado = verificar_dependencias_ocr()
+        quota_status = self.db.get_vision_quota_status()
+        quota_text = ""
+        if quota_status.get("remaining") is None:
+            quota_text = f" (Usadas: {quota_status.get('usage') or 0})"
+        else:
+            quota_text = f" (Restantes: {quota_status.get('remaining')}/{quota_status.get('quota')})"
+        
+        # Actualizar Tesseract
+        if estado["tesseract"]:
+            self.tess_label.configure(text=f"✅ Tesseract OK", text_color="#A6E3A1")
+        else:
+            self.tess_label.configure(text=f"❌ Tesseract (Falta)", text_color="#F38BA8")
+            msg += "• Tesseract OCR no está instalado o configurado.\n"
+
+        # Actualizar Vision
+        self.vision_label.configure(text="🚫 Cloud Vision deshabilitado", text_color="#7F8C8D")
+        
+        # Si falta Tesseract y es la primera vez, avisar
+        if not estado["tesseract"] and not hasattr(self, '_notified_ocr_error'):
+            self._notified_ocr_error = True
+            if messagebox.askyesno("Configuración OCR", 
+                                   "No hemos detectado Tesseract OCR instalado.\n\n"
+                                   "¿Deseas abrir el Manual de Configuración en PDF para solucionarlo?"):
+                self.generate_help_pdf()
 
     def show_stats(self):
         stats = self.learning_system.get_stats()
@@ -874,6 +1056,9 @@ class CouponNotifierApp:
                     usuario_valido=1, 
                     es_valido=1
                 )
+
+                # 2.1 Guardar como cupón positivo para futuras apariciones
+                self.db.add_positive_coupon(new_codigo, new_tienda)
                 
                 # 3. ALIMENTAR EL SISTEMA DE APRENDIZAJE (Supervisado)
                 self.learning_system.learn_from_feedback(
@@ -969,10 +1154,12 @@ class CouponNotifierApp:
         sum_frame.pack(fill="x", padx=20, pady=10)
         
         stats = self.learning_system.get_stats()
+        total_records = self.db.get_notifications_count()
         items = [
             ("Cupones Validados", str(stats['valid_feedback']), "#2ECC71"),
             ("Tiendas Detectadas", str(stats['stores_learned']), "#3498DB"),
-            ("Ahorros Estimados", f"${stats['valid_feedback'] * 5}", "#F1C40F") # Estimación ficticia de $5 por cupón
+            ("Ahorros Estimados", f"${stats['valid_feedback'] * 5}", "#F1C40F"), # Estimación ficticia de $5 por cupón
+            ("Nivel de Aprendizaje", f"{total_records} registros", "#cba6f7")
         ]
         
         for i, (label, val, color) in enumerate(items):
@@ -988,6 +1175,7 @@ class CouponNotifierApp:
         
         total_f = stats['total_feedback']
         avg_c = stats['avg_confidence']
+        total_xp = self.db.get_experience_total()
         
         if total_f < 10:
             ia_level = "JUNIOR 🌱"
@@ -1005,11 +1193,91 @@ class CouponNotifierApp:
         ctk.CTkLabel(ia_frame, text=ia_level, font=ctk.CTkFont(size=22, weight="bold"), text_color=ia_color).pack(pady=(10, 0))
         ctk.CTkLabel(ia_frame, text=ia_desc, font=ctk.CTkFont(size=13), text_color="gray").pack(pady=(0, 10))
         
-        # Barra de progreso de entrenamiento
-        prog_val = min(total_f / 100, 1.0) # 100 feedbacks para el máximo visual
+        # Barra de progreso de entrenamiento (experiencia)
+        prog_val = min(total_xp / 500, 1.0) # 500 pts para el máximo visual
         prog = ctk.CTkProgressBar(ia_frame, progress_color=ia_color)
         prog.pack(fill="x", padx=50, pady=(0, 15))
         prog.set(prog_val)
+
+        # 1.2 Historial de Experiencia
+        ctk.CTkLabel(container, text="Historial de Experiencia", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(10, 5))
+        xp_frame = ctk.CTkFrame(container)
+        xp_frame.pack(fill="x", padx=20, pady=10)
+
+        ctk.CTkLabel(xp_frame, text=f"XP Total: {total_xp}", font=ctk.CTkFont(size=14, weight="bold"), text_color="#F1C40F").pack(anchor="w", padx=15, pady=(10, 5))
+
+        xp_list = ctk.CTkScrollableFrame(xp_frame, height=140)
+        xp_list.pack(fill="both", expand=True, padx=15, pady=(0, 10))
+
+        history = self.db.get_experience_history(limit=30)
+        if history:
+            for points, reason, created_at in history:
+                row = ctk.CTkFrame(xp_list, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                color = "#2ECC71" if points >= 0 else "#E74C3C"
+                ctk.CTkLabel(row, text=f"{points:+d}", width=50, text_color=color, anchor="w").pack(side="left")
+                ctk.CTkLabel(row, text=str(reason)[:80], anchor="w").pack(side="left", padx=5)
+                ctk.CTkLabel(row, text=str(created_at), text_color="gray", anchor="e").pack(side="right")
+        else:
+            ctk.CTkLabel(xp_list, text="Sin historial aún", text_color="gray").pack(pady=10)
+
+        # 1.3 Cupones agrupados por score
+        ctk.CTkLabel(container, text="Cupones agrupados por score", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(10, 5))
+        grp_frame = ctk.CTkFrame(container)
+        grp_frame.pack(fill="both", padx=20, pady=10)
+
+        header = ctk.CTkFrame(grp_frame, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=(10, 5))
+        ctk.CTkLabel(header, text="Cupón", width=160, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Tienda", width=190, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Estado", width=90, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Score", width=70, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Δ", width=60, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Avg", width=70, anchor="w", text_color="gray").pack(side="left")
+        ctk.CTkLabel(header, text="Total", width=50, anchor="w", text_color="gray").pack(side="left")
+
+        grp_list = ctk.CTkScrollableFrame(grp_frame, height=220)
+        grp_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        grouped = self.db.get_coupon_score_stats(limit=50)
+        if grouped:
+            for i, (cupon, tienda, avg_score, total, last_score, prev_score, last_estado, last_usr_val, last_es_val) in enumerate(grouped):
+                row_color = "#1f2330" if i % 2 == 0 else "#1b1f2a"
+                row = ctk.CTkFrame(grp_list, fg_color=row_color)
+                row.pack(fill="x", pady=2)
+                # Estado del último registro
+                if last_estado == 'expirado':
+                    estado = "Expirado"
+                    estado_color = "#7f8c8d"
+                elif last_usr_val == 1 and last_es_val == 1:
+                    estado = "Validado"
+                    estado_color = "#2ECC71"
+                elif last_usr_val == 1 and last_es_val == 0:
+                    estado = "Descartado"
+                    estado_color = "#E74C3C"
+                else:
+                    estado = "Pendiente"
+                    estado_color = "#F1C40F"
+
+                # Score actual y delta
+                score_text = f"{float(last_score):.2f}" if last_score is not None else "---"
+                if prev_score is None or last_score is None:
+                    delta_text = "--"
+                    delta_color = "gray"
+                else:
+                    delta = float(last_score) - float(prev_score)
+                    delta_text = f"{delta:+.2f}"
+                    delta_color = "#2ECC71" if delta >= 0 else "#E74C3C"
+
+                ctk.CTkLabel(row, text=str(cupon), width=160, anchor="w").pack(side="left", padx=6)
+                ctk.CTkLabel(row, text=str(tienda), width=190, anchor="w").pack(side="left")
+                ctk.CTkLabel(row, text=estado, width=90, anchor="w", text_color=estado_color).pack(side="left")
+                ctk.CTkLabel(row, text=score_text, width=70, anchor="w").pack(side="left")
+                ctk.CTkLabel(row, text=delta_text, width=60, anchor="w", text_color=delta_color).pack(side="left")
+                ctk.CTkLabel(row, text=f"{avg_score:.2f}", width=70, anchor="w").pack(side="left")
+                ctk.CTkLabel(row, text=str(total), width=50, anchor="w").pack(side="left")
+        else:
+            ctk.CTkLabel(grp_list, text="Sin datos todavía", text_color="gray").pack(pady=10)
 
         # 2. Top Tiendas (Gráfico de barras simulado)
         ctk.CTkLabel(container, text="Top Tiendas por Actividad", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(20, 10))

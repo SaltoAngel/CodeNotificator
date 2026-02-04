@@ -15,3 +15,8 @@ requests
 darkdetect
 python-dotenv
 textblob
+easyocr
+rapidfuzz
+scikit-image
+google-cloud-vision
+fpdf
