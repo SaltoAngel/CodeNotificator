@@ -66,6 +66,10 @@ class CouponNotifierApp:
         self.current_logo = None
 
         self.setup_ui()
+        
+        # Caché de optimización (Carga inicial)
+        self.false_positive_cache = self.db.get_all_false_positives()
+        
         self.load_notifications()
         self.check_queue()
         self.check_configuration()
@@ -94,17 +98,17 @@ class CouponNotifierApp:
         else:  # Linux y otros
             ui_font = "DejaVu Sans"
         
-        # Colores personalizados para modo oscuro
-        bg_color = "#2b2b2b"
-        fg_color = "#ffffff"
-        selected_color = "#1f538d"
-        header_color = "#333333"
+        # Colores personalizados para modo oscuro "Deep Night"
+        bg_color = "#1e1e2e" # Deep Navy/Night
+        fg_color = "#cdd6f4" # Light gray
+        selected_color = "#45475a" # Medium gray
+        header_color = "#181825" # Darker background for header
 
         style.configure("Treeview",
                         background=bg_color,
                         foreground=fg_color,
                         fieldbackground=bg_color,
-                        rowheight=30,
+                        rowheight=32, # Un poco más de aire
                         borderwidth=0,
                         font=(ui_font, 10))
         
@@ -116,118 +120,87 @@ class CouponNotifierApp:
                         relief="flat",
                         font=(ui_font, 10, "bold"))
         
-        style.map("Treeview.Heading", background=[('active', "#444444")])
+        style.map("Treeview.Heading", background=[('active', "#313244")])
 
     def setup_ui(self):
-        # Sidebar/Toolbar lateral (Opcional, pero para este diseño usaremos Toolbar superior moderna)
-        self.main_container = ctk.CTkFrame(self.root, corner_radius=0)
-        self.main_container.pack(fill="both", expand=True)
+        # 0. Layout Principal con Sidebar
+        self.root.columnconfigure(1, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        # 1. Header
-        self.header_frame = ctk.CTkFrame(self.main_container, height=60, corner_radius=0, fg_color="#1f538d")
-        self.header_frame.pack(fill="x", padx=0, pady=0)
+        # 1. SIDEBAR IZQUIERDA
+        self.sidebar = ctk.CTkFrame(self.root, width=200, corner_radius=0, fg_color="#11111b")
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_rowconfigure(10, weight=1) # Espaciador inferior
+
+        self.title_label = ctk.CTkLabel(self.sidebar, text="🚀 CODE\nNOTIFICATOR", 
+                                        font=ctk.CTkFont(size=18, weight="bold"), text_color="#89b4fa")
+        self.title_label.pack(pady=30, padx=20)
+
+        # Botones de la Sidebar
+        def create_sidebar_btn(text, command, color=None):
+            btn = ctk.CTkButton(self.sidebar, text=text, command=command, 
+                                 fg_color="transparent", anchor="w", height=40,
+                                 hover_color="#313244", font=ctk.CTkFont(size=13))
+            if color: btn.configure(text_color=color)
+            btn.pack(fill="x", padx=10, pady=2)
+            return btn
+
+        self.btn_scan = create_sidebar_btn("🔍 ESCANEAR", self.start_scan, "#a6e3a1")
+        self.btn_nav_pending = create_sidebar_btn("📥 PENDIENTES", lambda: self.change_tab("Pendientes"))
+        self.btn_nav_valid = create_sidebar_btn("✅ VALIDADOS", lambda: self.change_tab("Validados"))
+        self.btn_nav_false = create_sidebar_btn("❌ DESCARTADOS", lambda: self.change_tab("Falsos Positivos"))
+        self.btn_nav_dash = create_sidebar_btn("📊 DASHBOARD", lambda: self.change_tab("📊 Dashboard"))
         
-        self.title_label = ctk.CTkLabel(self.header_frame, text="🚀 CODENOTIFICATOR PRO", 
-                                        font=ctk.CTkFont(size=20, weight="bold"))
-        self.title_label.pack(pady=15)
-
-        # 2. Toolbar superior
-        self.toolbar = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.toolbar.pack(fill="x", padx=15, pady=10)
-
-        # Botones principales con iconos e identificadores claros
-        self.btn_scan = ctk.CTkButton(self.toolbar, text="🔍 ESCANEAR", command=self.start_scan,
-                                      fg_color="#27AE60", hover_color="#219150", width=120)
-        self.btn_scan.pack(side="left", padx=5)
-
-        self.btn_config = ctk.CTkButton(self.toolbar, text="⚙️ CONFIG", command=self.open_config, width=100)
-        self.btn_config.pack(side="left", padx=5)
-
-        self.btn_stats = ctk.CTkButton(self.toolbar, text="📊 STATS", command=self.show_stats, width=100)
-        self.btn_stats.pack(side="left", padx=5)
-
-        self.btn_dict = ctk.CTkButton(self.toolbar, text="📚 REGLAS", command=self.open_dictionary_manager, width=100)
-        self.btn_dict.pack(side="left", padx=5)
-
-        self.btn_export = ctk.CTkButton(self.toolbar, text="📥 EXPORTAR", command=self.export_to_csv, width=100)
-        self.btn_export.pack(side="left", padx=5)
-
-        # Espaciador
-        ctk.CTkLabel(self.toolbar, text="", width=20).pack(side="left", expand=True)
-
-        self.btn_clear = ctk.CTkButton(self.toolbar, text="🗑️ LIMPIAR", command=self.clear_old_coupons,
-                                       fg_color="#C0392B", hover_color="#962D22", width=100)
-        self.btn_clear.pack(side="right", padx=5)
-
-        # 3. Filtros
-        self.filter_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.filter_frame.pack(fill="x", padx=20, pady=(0, 10))
-
-        ctk.CTkLabel(self.filter_frame, text="Filtrar por:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=5)
+        ctk.CTkLabel(self.sidebar, text="HERRAMIENTAS", font=ctk.CTkFont(size=10, weight="bold"), 
+                      text_color="gray").pack(pady=(20, 5), padx=20, anchor="w")
         
-        self.filter_var = ctk.StringVar(value="Todos")
-        self.filter_menu = ctk.CTkOptionMenu(self.filter_frame, 
-                                             values=["Todos", "Recientes (7 días)", "Alta confianza (>=80%)", "Por tienda"],
-                                             variable=self.filter_var,
-                                             command=lambda x: self.apply_filters())
-        self.filter_menu.pack(side="left", padx=5)
+        self.btn_dict = create_sidebar_btn("📚 REGLAS", self.open_dictionary_manager)
+        self.btn_config = create_sidebar_btn("⚙️ CONFIG", self.open_config)
+        self.btn_export = create_sidebar_btn("📥 EXPORTAR", self.export_to_csv)
+        
+        self.btn_clear = create_sidebar_btn("🗑️ LIMPIAR", self.clear_old_coupons, "#f38ba8")
+
+        # 2. CONTENEDOR PRINCIPAL
+        self.main_container = ctk.CTkFrame(self.root, corner_radius=0, fg_color="#181825")
+        self.main_container.grid(row=0, column=1, sticky="nsew")
+        self.main_container.columnconfigure(0, weight=1)
+        self.main_container.rowconfigure(2, weight=1)
+
+        # Barra de Búsqueda y Filtros superior
+        self.top_bar = ctk.CTkFrame(self.main_container, fg_color="transparent")
+        self.top_bar.grid(row=0, column=0, sticky="ew", padx=20, pady=15)
 
         self.store_filter_var = ctk.StringVar()
-        self.store_filter_entry = ctk.CTkEntry(self.filter_frame, placeholder_text="Buscar tienda o código...",
-                                                textvariable=self.store_filter_var, width=250)
+        self.store_filter_entry = ctk.CTkEntry(self.top_bar, placeholder_text="Buscar tienda o código...",
+                                                textvariable=self.store_filter_var, width=350, height=35)
         self.store_filter_entry.pack(side="left", padx=5)
         self.store_filter_entry.bind("<KeyRelease>", lambda e: self.apply_filters())
-        
-        # El botón aplicar se queda como soporte pero ya no es estrictamente necesario
-        self.btn_apply = ctk.CTkButton(self.filter_frame, text="Refrescar", width=80, command=self.apply_filters)
-        self.btn_apply.pack(side="left", padx=5)
 
-        # 4. Progress Bar (Oculta por defecto)
-        self.progress_bar = ctk.CTkProgressBar(self.main_container, orientation="horizontal", mode="indeterminate")
-        self.progress_bar.pack(fill="x", padx=20, pady=5)
+        self.filter_var = ctk.StringVar(value="Todos")
+        self.filter_menu = ctk.CTkOptionMenu(self.top_bar, 
+                                             values=["Todos", "Recientes (7 días)", "Alta confianza (>=80%)"],
+                                             variable=self.filter_var,
+                                             command=lambda x: self.apply_filters(), height=35)
+        self.filter_menu.pack(side="left", padx=10)
+
+        # Progress Bar (Ahora centrada en la parte superior)
+        self.progress_bar = ctk.CTkProgressBar(self.main_container, orientation="horizontal", mode="indeterminate", height=4)
+        self.progress_bar.grid(row=1, column=0, sticky="ew", padx=20)
         self.progress_bar.set(0)
-        self.progress_bar.pack_forget()
+        self.progress_bar.grid_forget()
 
-        # 5. Feedback Panel (Mejorado visualmente)
-        self.feedback_frame = ctk.CTkFrame(self.main_container, fg_color="#1a1a1a", height=50)
-        self.feedback_frame.pack(fill="x", padx=20, pady=5)
+        # ÁREA DE CONTENIDO (Pestañas)
+        self.tabview = ctk.CTkTabview(self.main_container, fg_color="transparent")
+        self.tabview.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
         
-        ctk.CTkLabel(self.feedback_frame, text="¿Este cupón funcionó?", font=ctk.CTkFont(size=13)).pack(side="left", padx=(10, 20), pady=10)
-        
-        # Widget de Logo (Nuevo)
-        self.logo_panel = ctk.CTkLabel(self.feedback_frame, text="", width=40, height=40)
-        self.logo_panel.pack(side="left", padx=5)
-        
-        self.valid_btn = ctk.CTkButton(self.feedback_frame, text="✅ SÍ / CORREGIR", command=self.mark_as_valid,
-                                       fg_color="#27AE60", width=140, state="disabled")
-        self.valid_btn.pack(side="left", padx=10)
-
-        self.invalid_btn = ctk.CTkButton(self.feedback_frame, text="❌ DESCARTAR", command=self.mark_as_invalid,
-                                         fg_color="#C0392B", width=120, state="disabled")
-        self.invalid_btn.pack(side="left", padx=10)
-
-        self.expired_btn = ctk.CTkButton(self.feedback_frame, text="🕒 EXPIRADO", command=self.mark_as_expired,
-                                         fg_color="#7f8c8d", width=120, state="disabled")
-        self.expired_btn.pack(side="left", padx=10)
-        
-        # Acciones rápidas a la derecha
-        self.btn_copy = ctk.CTkButton(self.feedback_frame, text="📋 COPIAR", command=self.copy_selection, width=100)
-        self.btn_copy.pack(side="right", padx=10)
-        
-        self.btn_go = ctk.CTkButton(self.feedback_frame, text="🔗 IR A WEB", command=self.copy_and_open_selected, width=100)
-        self.btn_go.pack(side="right", padx=10)
-
-        # 6. Pestañas y Tablas
-        self.tabview = ctk.CTkTabview(self.main_container)
-        self.tabview.pack(fill="both", expand=True, padx=20, pady=10)
-        
+        # En la sidebar ya tenemos navegación, pero mantenemos las pestañas internas como contenedores
         self.tab_pending = self.tabview.add("Pendientes")
         self.tab_validated = self.tabview.add("Validados")
         self.tab_false = self.tabview.add("Falsos Positivos")
         self.tab_dashboard = self.tabview.add("📊 Dashboard")
         
-        # Vincular cambio de pestaña para manejar el foco
-        self.tabview.configure(command=self.on_tab_changed)
+        # Ocultar cabeceras de pestañas para usar solo la Sidebar
+        self.tabview._segmented_button.grid_forget()
         
         self.setup_dashboard(self.tab_dashboard)
 
@@ -236,36 +209,86 @@ class CouponNotifierApp:
         self.trees["validated"] = self.create_modern_tree(self.tab_validated)
         self.trees["false"] = self.create_modern_tree(self.tab_false)
 
-        # 7. Status Bar
-        self.status_frame = ctk.CTkFrame(self.main_container, height=30, corner_radius=0, fg_color="#111111")
-        self.status_frame.pack(fill="x", side="bottom")
+        # 3. PANEL DE DETALLES (FLY-OUT DERECHA)
+        self.detail_panel = ctk.CTkFrame(self.root, width=300, corner_radius=0, fg_color="#1e1e2e")
+        # Se inicia oculto, se muestra al seleccionar un cupón
+        # self.detail_panel.grid(row=0, column=2, sticky="nsew") 
+
+        ctk.CTkLabel(self.detail_panel, text="DETalles DEL CUPÓN", font=ctk.CTkFont(size=14, weight="bold"),
+                      text_color="#cba6f7").pack(pady=20, padx=20)
+
+        self.logo_panel = ctk.CTkLabel(self.detail_panel, text="🏢", width=80, height=80, font=ctk.CTkFont(size=40))
+        self.logo_panel.pack(pady=10)
+
+        self._create_detail_info_area()
+
+        # Botones de Acción en el panel lateral
+        self.action_frame = ctk.CTkFrame(self.detail_panel, fg_color="transparent")
+        self.action_frame.pack(fill="x", padx=20, pady=20)
+
+        self.valid_btn = ctk.CTkButton(self.action_frame, text="✅ VALIDAR / EDITAR", command=self.mark_as_valid,
+                                       fg_color="#a6e3a1", text_color="#11111b", hover_color="#94e2d5")
+        self.valid_btn.pack(fill="x", pady=5)
+
+        self.invalid_btn = ctk.CTkButton(self.action_frame, text="❌ DESCARTAR", command=self.mark_as_invalid,
+                                         fg_color="#f38ba8", text_color="#11111b")
+        self.invalid_btn.pack(fill="x", pady=5)
+
+        self.expired_btn = ctk.CTkButton(self.action_frame, text="🕒 MARCAR EXPIRADO", command=self.mark_as_expired,
+                                         fg_color="#fab387", text_color="#11111b")
+        self.expired_btn.pack(fill="x", pady=5)
+
+        self.btn_go = ctk.CTkButton(self.action_frame, text="🔗 IR A LA WEB", command=self.copy_and_open_selected, 
+                                     fg_color="#89b4fa", text_color="#11111b")
+        self.btn_go.pack(fill="x", pady=(20, 5))
+
+        # 4. Status Bar
+        self.status_frame = ctk.CTkFrame(self.main_container, height=25, corner_radius=0, fg_color="#11111b")
+        self.status_frame.grid(row=3, column=0, sticky="ew")
         
         self.count_label = ctk.CTkLabel(self.status_frame, text="0 cupones", font=ctk.CTkFont(size=11))
         self.count_label.pack(side="left", padx=20)
 
-        self.stats_label = ctk.CTkLabel(self.status_frame, text="Cerebro ML: Activo", font=ctk.CTkFont(size=11), text_color="#7f8c8d")
+        self.stats_label = ctk.CTkLabel(self.status_frame, text="IA Activa", font=ctk.CTkFont(size=11), text_color="#89b4fa")
         self.stats_label.pack(side="right", padx=20)
 
         # Menú contextual
-        self.context_menu = tk.Menu(self.root, tearoff=0, bg="#333333", fg="white", activebackground="#1f538d")
+        self.context_menu = tk.Menu(self.root, tearoff=0, bg="#11111b", fg="white", activebackground="#45475a")
         self.context_menu.add_command(label="🔗 Ir a la Web", command=self.open_selected_url)
         self.context_menu.add_command(label="📋 Copiar Código", command=self.copy_selected_code)
         self.context_menu.add_command(label="📧 Ver Correo Original", command=self.open_selected_email)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="✅ SÍ / CORREGIR", command=self.mark_as_valid)
-        self.context_menu.add_command(label="❌ DESCARTAR / BASURA", command=self.mark_as_invalid)
-        self.context_menu.add_command(label="🕒 EXPIRADO", command=self.mark_as_expired)
+        self.context_menu.add_command(label="✅ VALIDAR / CORREGIR", command=self.mark_as_valid)
+        self.context_menu.add_command(label="❌ DESCARTAR", command=self.mark_as_invalid)
         self.context_menu.add_separator()
-        self.context_menu.add_command(label="🗑️ Eliminar", command=self.delete_selected_coupon)
+        self.context_menu.add_command(label="🗑️ Eliminar de BD", command=self.delete_selected_coupon)
+
+    def _create_detail_info_area(self):
+        self.info_scroll = ctk.CTkScrollableFrame(self.detail_panel, fg_color="transparent", height=250)
+        self.info_scroll.pack(fill="both", expand=True, padx=10)
+
+        def add_info_row(label):
+            l = ctk.CTkLabel(self.info_scroll, text=label, font=ctk.CTkFont(size=10, weight="bold"), text_color="gray")
+            l.pack(anchor="w", padx=10, pady=(10, 0))
+            v = ctk.CTkLabel(self.info_scroll, text="---", font=ctk.CTkFont(size=12), wraplength=240, justify="left")
+            v.pack(anchor="w", padx=10)
+            return v
+
+        self.val_store = add_info_row("TIENDA")
+        self.val_code = add_info_row("CÓDIGO")
+        self.val_desc = add_info_row("DESCUENTO")
+        self.val_conf = add_info_row("CONFIANZA IA")
+        self.val_date = add_info_row("DETECTADO")
+        self.val_exp = add_info_row("EXPIRA")
 
     def create_modern_tree(self, parent):
         container = ctk.CTkFrame(parent, fg_color="transparent")
         container.pack(fill="both", expand=True)
 
-        columns = ("N°", "Cupón", "Tienda", "Asunto", "Descuento", "URL", "Confianza", "Fecha", "Expira")
+        columns = ("N°", "IA", "Cupón", "Tienda", "Asunto", "Descuento", "URL", "Confianza", "Fecha", "Expira")
         tree = ttk.Treeview(container, columns=columns, show="headings", style="Treeview")
 
-        col_widths = [40, 130, 120, 200, 80, 150, 80, 140, 140]
+        col_widths = [40, 50, 130, 120, 200, 80, 150, 80, 140, 140]
         for col, width in zip(columns, col_widths):
             tree.heading(col, text=col)
             tree.column(col, width=width, anchor="center")
@@ -339,19 +362,29 @@ class CouponNotifierApp:
         
         selection = tree.selection()
         if selection:
-            # Obtener valores para la UI (como el logo)
+            # Mostrar panel si estaba oculto
+            self.detail_panel.grid(row=0, column=2, sticky="nsew")
+
             values = tree.item(selection[0], "values")
-            
-            # La selección devuelve el IID (que es el ID de la BD), usarlo para operaciones de BD
             self.selected_cupon_id = int(selection[0])
             
             self.valid_btn.configure(state="normal")
             self.invalid_btn.configure(state="normal")
             self.expired_btn.configure(state="normal")
             
+            # Actualizar labels de información (N°, IA, Cupón, Tienda, Asunto, Descuento, URL, Confianza, Fecha, Expira)
+            self.val_store.configure(text=values[3])
+            self.val_code.configure(text=values[2])
+            self.val_desc.configure(text=values[5] or "Sin especificar")
+            self.val_conf.configure(text=f"{values[1]} {values[7]}")
+            self.val_date.configure(text=values[8])
+            self.val_exp.configure(text=values[9])
+
             # Actualizar Logo
             self.update_store_logo(values)
         else:
+            # Ocultar panel si no hay selección
+            self.detail_panel.grid_forget()
             self.selected_cupon_id = None
             self.valid_btn.configure(state="disabled")
             self.invalid_btn.configure(state="disabled")
@@ -410,15 +443,27 @@ class CouponNotifierApp:
             expira = row.get('fecha_expiracion', "")
             
             tag = "conf_mid"
-            if self.db.is_false_positive_term(code) or (usr_val and not is_val) or status == 'expirado':
+            # Optimización: Verificación local en RAM en lugar de consulta SQL
+            is_blacklisted = code and code.upper() in self.false_positive_cache
+            
+            if is_blacklisted or (usr_val and not is_val) or status == 'expirado':
                 tag = "flag_false"
             elif self.db.is_positive_coupon(code, tienda) or (usr_val and is_val):
                 tag = "flag_positive"
             elif conf >= 0.8: tag = "conf_high"
             elif conf < 0.5: tag = "conf_low"
 
+            # Selector de icono IA
+            ia_icon = "🤖" # Auto-detectado
+            if usr_val:
+                ia_icon = "🧠" # Entrenado por humano
+            elif row.get('metodo') == 'Metadata':
+                ia_icon = "💎" # Directo de Gmail
+            elif row.get('is_ocr'):
+                ia_icon = "📷" # Vía OCR
+
             tree.insert("", "end", iid=str(cupon_id), values=(
-                idx, code, tienda, subject, desc, url, f"{conf:.0%}", date, expira or "---"
+                idx, ia_icon, code, tienda, subject, desc, url, f"{conf:.0%}", date, expira or "---"
             ), tags=(tag,))
 
     def update_store_logo(self, values):
@@ -426,9 +471,9 @@ class CouponNotifierApp:
         if not Image:
             return
 
-        # N°, Cupón, Tienda, Asunto, Descuento, URL...
-        store_name = values[2]
-        store_url = values[5]
+        # N°, IA, Cupón, Tienda, Asunto, Descuento, URL...
+        store_name = values[3]
+        store_url = values[6]
         
         def load():
             try:
@@ -480,9 +525,23 @@ class CouponNotifierApp:
             logger.error(f"Error vinculando hotkeys: {e}")
 
     def change_tab(self, name):
-        """Cambia de pestaña por nombre y gestiona el foco."""
+        """Cambia de pestaña por nombre y gestiona el foco y realce de sidebar."""
         self.tabview.set(name)
         self.on_tab_changed()
+        
+        # Realce visual en Sidebar
+        mapping = {
+            "Pendientes": self.btn_nav_pending,
+            "Validados": self.btn_nav_valid,
+            "Falsos Positivos": self.btn_nav_false,
+            "📊 Dashboard": self.btn_nav_dash
+        }
+        
+        for tab_name, btn in mapping.items():
+            if tab_name == name:
+                btn.configure(fg_color="#313244", border_width=1, border_color="#89b4fa")
+            else:
+                btn.configure(fg_color="transparent", border_width=0)
 
     def on_tab_changed(self):
         """Gestiona el foco cuando cambia la pestaña activa."""
@@ -516,7 +575,7 @@ class CouponNotifierApp:
             return
         self.scanning = True
         self.btn_scan.configure(state="disabled", text="⏳ ESCANEANDO")
-        self.progress_bar.pack(fill="x", padx=20, pady=5)
+        self.progress_bar.grid(row=1, column=0, sticky="ew", padx=20)
         self.progress_bar.start()
         
         threading.Thread(target=self.perform_scan, daemon=True).start()
@@ -537,7 +596,7 @@ class CouponNotifierApp:
                     self.scanning = False
                     self.btn_scan.configure(state="normal", text="🔍 ESCANEAR")
                     self.progress_bar.stop()
-                    self.progress_bar.pack_forget()
+                    self.progress_bar.grid_forget()
                     self.load_notifications()
                     
                     if err:
@@ -563,6 +622,19 @@ class CouponNotifierApp:
         t_gen = tabs.add("General")
         t_gmail = tabs.add("Gmail API")
         t_keys = tabs.add("Atajos")
+        t_info = tabs.add("Info / Cambios")
+
+        # --- Tab Info (Changelog) ---
+        try:
+            with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+                changelog_text = f.read()
+        except Exception:
+            changelog_text = "No se pudo cargar el archivo CHANGELOG.md"
+
+        info_box = ctk.CTkTextbox(t_info, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
+        info_box.pack(fill="both", expand=True, padx=5, pady=5)
+        info_box.insert("0.0", changelog_text)
+        info_box.configure(state="disabled")
 
         # General Tab
         config = self.db.get_config()
@@ -782,19 +854,44 @@ class CouponNotifierApp:
                 messagebox.showwarning("Atención", "Tienda y Código son obligatorios.")
                 return
 
-            # 1. Actualizar aprendizaje ML con los datos REALE corregidos por el humano
-            self.learning_system.learn_from_feedback(new_codigo, new_tienda, True, contexto=cupon_data.get('contexto'))
-            
-            # 2. Guardar datos corregidos en la DB y marcar como validado
-            self.db.update_cupon_full(self.selected_cupon_id, new_codigo, new_tienda, new_desc)
-            
-            # 3. Refrescar UI
-            self.load_notifications()
-            dialog.destroy()
-            self.show_toast("¡IA Entrenada con éxito! 🧠", color="#2ECC71")
+            try:
+                # 1. Detector de corrección: Si el código cambió, el ANTERIOR era basura/ruido
+                original_code = cupon_data['cupon']
+                if original_code and new_codigo != original_code:
+                    # Aprender que el código detectado automáticamente era INCORRECTO
+                    self.learning_system.learn_from_feedback(original_code, cupon_data['tienda'], False)
+                    # Añadir a la base de datos de términos basura
+                    self.db.add_false_positive_term(original_code)
+                    if self.false_positive_cache is not None:
+                        self.false_positive_cache.add(original_code.upper())
 
-        btn_save = ctk.CTkButton(dialog, text="✅ GUARDAR Y ENTRENAR", command=save_and_train, fg_color="#27AE60")
-        btn_save.pack(pady=20, padx=30, fill="x")
+                # 2. Actualizar datos en la base de datos
+                self.db.update_notification(
+                    self.selected_cupon_id, 
+                    cupon=new_codigo, 
+                    tienda=new_tienda, 
+                    descuento=new_desc,
+                    usuario_valido=1, 
+                    es_valido=1
+                )
+                
+                # 3. ALIMENTAR EL SISTEMA DE APRENDIZAJE (Supervisado)
+                self.learning_system.learn_from_feedback(
+                    new_codigo, 
+                    new_tienda, 
+                    es_valido=True, 
+                    contexto=cupon_data.get('contexto')
+                )
+                
+                self.show_toast(f"IA Entrenada: {new_tienda} reconoce {new_codigo}", "#2ECC71")
+                dialog.destroy()
+                self.load_notifications()
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo guardar: {e}")
+
+        ctk.CTkButton(dialog, text="✅ CONFIRMAR Y ENTRENAR IA", command=save_and_train, 
+                       fg_color="#27AE60", hover_color="#219150").pack(pady=20)
         
         ctk.CTkButton(dialog, text="Cancelar", command=dialog.destroy, fg_color="transparent").pack()
 
@@ -803,15 +900,17 @@ class CouponNotifierApp:
         sel = tree.selection()
         if sel:
             vals = tree.item(sel[0], "values")
+            # N°, IA, Cupón, Tienda... indices han cambiado por la nueva columna
             self.root.clipboard_clear()
-            self.root.clipboard_append(vals[1])
-            if vals[5]: webbrowser.open(vals[5])
+            self.root.clipboard_append(vals[2])
+            if vals[6]: webbrowser.open(vals[6])
 
     def copy_selection(self):
         tree = self.current_tree or self.trees["pending"]
         sel = tree.selection()
         if sel:
-            codes = [tree.item(i, "values")[1] for i in sel]
+            # Índice 2 es el Cupón ahora
+            codes = [tree.item(i, "values")[2] for i in sel]
             self.root.clipboard_clear()
             self.root.clipboard_append("\n".join(codes))
             self.show_toast(f"{len(codes)} códigos copiados. 📋")
@@ -839,14 +938,15 @@ class CouponNotifierApp:
         sel = event.widget.selection()
         if sel:
             vals = event.widget.item(sel[0], "values")
-            # N°, Cupón, Tienda, Asunto, Descuento, URL, Confianza, Fecha, Expira
-            details = (f"Código: {vals[1]}\n"
-                       f"Tienda: {vals[2]}\n"
-                       f"Asunto: {vals[3]}\n"
-                       f"Descuento: {vals[4]}\n"
-                       f"Confianza: {vals[6]}\n"
-                       f"Fecha Detección: {vals[7]}\n"
-                       f"Fecha Expiración: {vals[8]}")
+            # N°, IA, Cupón, Tienda, Asunto, Descuento, URL, Confianza, Fecha, Expira
+            details = (f"Tipo IA: {vals[1]}\n"
+                       f"Código: {vals[2]}\n"
+                       f"Tienda: {vals[3]}\n"
+                       f"Asunto: {vals[4]}\n"
+                       f"Descuento: {vals[5]}\n"
+                       f"Confianza: {vals[7]}\n"
+                       f"Fecha Detección: {vals[8]}\n"
+                       f"Fecha Expiración: {vals[9]}")
             messagebox.showinfo("Detalles del Cupón", details)
 
     def clear_old_coupons(self):
@@ -1002,6 +1102,10 @@ class CouponNotifierApp:
             
             # 1. Bloqueo Global (Blacklist dura)
             self.db.add_false_positive_term(code)
+            
+            # Actualizar caché en tiempo real para reflejar en UI inmediatamente
+            if code:
+                self.false_positive_cache.add(code.upper())
             
             # 2. Informar a la IA (ML weights) para que aprenda el patrón contextual
             self.learning_system.learn_from_feedback(code, tienda, False, contexto=cupon_data.get('contexto'))

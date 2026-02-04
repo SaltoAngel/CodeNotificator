@@ -14,3 +14,4 @@ plyer
 requests
 darkdetect
 python-dotenv
+textblob

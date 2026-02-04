@@ -116,6 +116,45 @@ class SimpleLearningSystem:
 
         return base_confidence
 
+    def suggest_correction(self, texto_cupon, tienda):
+        """Intenta corregir errores OCR basados en lo aprendido de la tienda."""
+        if not tienda or not texto_cupon:
+            return texto_cupon
+
+        # 1. Obtener el patrón más exitoso de la tienda
+        best_pattern = self.db.get_best_pattern_for_store(tienda)
+        if not best_pattern:
+            return texto_cupon
+
+        # 2. Aplicar corrección difusa si el patrón es muy confiable (>90% éxito)
+        if best_pattern['confidence'] > 0.9:
+            corrected = self._apply_fuzzy_correction(texto_cupon, best_pattern['pattern'])
+            if corrected != texto_cupon:
+                logger.info(f"Auto-corrección OCR ({tienda}): {texto_cupon} -> {corrected}")
+                return corrected
+        
+        return texto_cupon
+
+    def _apply_fuzzy_correction(self, text, target_pattern):
+        """Corrige caracteres visualmente similares (0->O, 1->I, 5->S, 8->B) según el patrón esperado."""
+        text = text.upper().strip()
+        
+        # Mapa de sustituciones visuales
+        to_letters = {'0': 'O', '1': 'I', '5': 'S', '8': 'B', '2': 'Z'}
+        to_digits = {'O': '0', 'I': '1', 'S': '5', 'B': '8', 'Z': '2', 'L': '1'}
+
+        # Si la tienda usa SOLO LETRAS (ej: "LLLLLLLL" o "ALL_LETTERS_8")
+        if "ALL_LETTERS" in target_pattern or re.match(r'^L+$', target_pattern):
+            # Convertir cualquier número intruso a su letra parecida
+            return "".join([to_letters.get(c, c) for c in text])
+
+        # Si la tienda usa SOLO NÚMEROS (ej: "DDDDDD" o "ALL_DIGITS_6")
+        elif "ALL_DIGITS" in target_pattern or re.match(r'^D+$', target_pattern):
+            # Convertir cualquier letra intrusa a su número parecido
+            return "".join([to_digits.get(c, c) for c in text])
+
+        return text
+
     def extract_keywords(self, contexto, max_keywords=8):
         """Extrae keywords simples del contexto cercano al cupón."""
         if not contexto:
@@ -156,9 +195,9 @@ class SimpleLearningSystem:
         feedback_stats, pattern_stats = self.db.get_learning_stats()
 
         return {
-            'total_feedback': feedback_stats[0] if feedback_stats else 0,
-            'valid_feedback': feedback_stats[1] if feedback_stats else 0,
-            'stores_learned': feedback_stats[2] if feedback_stats else 0,
-            'total_patterns': pattern_stats[0] if pattern_stats else 0,
-            'avg_confidence': pattern_stats[1] if pattern_stats else 0.0,
+            'total_feedback': feedback_stats[0] if feedback_stats and feedback_stats[0] else 0,
+            'valid_feedback': feedback_stats[1] if feedback_stats and feedback_stats[1] else 0,
+            'stores_learned': feedback_stats[2] if feedback_stats and feedback_stats[2] else 0,
+            'total_patterns': pattern_stats[0] if pattern_stats and pattern_stats[0] else 0,
+            'avg_confidence': pattern_stats[1] if pattern_stats and pattern_stats[1] else 0.0,
         }

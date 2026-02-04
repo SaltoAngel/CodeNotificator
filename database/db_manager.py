@@ -353,7 +353,23 @@ class DatabaseManager:
                 (1 if es_valido else 0, confianza, cupon_id)
             )
         self.conn.commit()
-        logger.info(f"Cupón {cupon_id} actualizado (es_valido={es_valido}, estado={estado})")
+
+    def update_notification(self, cupon_id, **kwargs):
+        """Actualiza campos específicos de una notificación."""
+        if not kwargs:
+            return
+            
+        fields = []
+        params = []
+        for key, value in kwargs.items():
+            fields.append(f"{key} = ?")
+            params.append(value)
+            
+        params.append(cupon_id)
+        query = f"UPDATE notifications SET {', '.join(fields)} WHERE id = ?"
+        
+        self.conn.execute(query, params)
+        self.conn.commit()
 
     def update_cupon_full(self, cupon_id, cupon, tienda, descuento, es_valido=1, confianza=1.0):
         logger.info(f"Intentando actualizar cupón ID: {cupon_id} a usuario_valido=1")
@@ -412,6 +428,26 @@ class DatabaseManager:
             ''', (tienda, patron, exitosos, confianza))
 
         self.conn.commit()
+
+    def get_best_pattern_for_store(self, tienda):
+        """Devuelve el patrón más confiable de una tienda."""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT patron, total_apariciones, exitosos, confianza 
+            FROM learning_patterns 
+            WHERE tienda = ? 
+            ORDER BY exitosos DESC, confianza DESC 
+            LIMIT 1
+        ''', (tienda,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                'pattern': row[0],
+                'total': row[1],
+                'success': row[2],
+                'confidence': row[3]
+            }
+        return None
 
     def get_pattern_confidence(self, tienda, patron):
         cursor = self.conn.cursor()
@@ -504,6 +540,12 @@ class DatabaseManager:
         cursor.execute("SELECT term FROM false_positive_terms ORDER BY term ASC LIMIT ?", (limit,))
         return [row[0] for row in cursor.fetchall()]
 
+    def get_all_false_positives(self):
+        """Devuelve un SET de Python con todos los términos prohibidos (para caché rápida)."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT term FROM false_positive_terms")
+        return {row[0] for row in cursor.fetchall()}
+
     def remove_false_positive_term(self, term):
         if not term:
             return
@@ -519,7 +561,7 @@ class DatabaseManager:
         self.conn.commit()
 
     def is_false_positive_term(self, term):
-        if not term:
+        if not term or not isinstance(term, str):
             return False
         cursor = self.conn.cursor()
         cursor.execute("SELECT 1 FROM false_positive_terms WHERE term = ? LIMIT 1", (term.upper(),))

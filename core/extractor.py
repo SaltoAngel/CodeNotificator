@@ -1,6 +1,13 @@
 import re
+import json
+import os
+import sys
 import validators
 from datetime import datetime, timedelta
+
+# Añadir el directorio raíz al PATH para permitir ejecuciones directas
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.logger import logger
 
 class CouponExtractor:
@@ -18,7 +25,20 @@ class CouponExtractor:
         self.blacklist_words = {
             "PROMOC0DE", "PROMOCODE", "VALID", "EXPIRED", "CLICKHERE",
             "SHOPNOW", "VIEWONLINE", "UNSUBSCRIBE", "PRIVACY", "TERMS", 
-            "CONDICIONES", "YOURFIRSTYEAR", "YOURFIRSTORDER", "SIGNUP"
+            "CONDICIONES", "YOURFIRSTYEAR", "YOURFIRSTORDER", "SIGNUP",
+            "ORDER", "ODER", "TRACKING", "SHIPMENT", "INVOICE", "RECEIPT",
+            "SUBTOTAL", "TOTAL", "SUMMARY", "RESUMEN", "PAGO", "PAYMENT",
+            "PHONE", "TELEFONO", "TEL", "FAX", "MOBILE", "CELULAR",
+            "ADDRESS", "DIRECCION", "CALLE", "STREET", "AVENUE", "SUITE",
+            "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
+            "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+            "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+            "COPYRIGHT", "RIGHTS", "RESERVED", "DERECHOS", "RESERVADOS",
+            "SUPPORT", "AYUDA", "CONTACT", "CONTACTO", "QUESTIONS", "PREGUNTAS",
+            "WHATSAPP", "FACEBOOK", "INSTAGRAM", "TWITTER", "YOUTUBE",
+            "LOGIN", "INICIAR", "SESION", "ACCOUNT", "CUENTA", "PASSWORD",
+            "IMG", "JPG", "PNG", "GIF", "HTML", "PHP", "ASPX",
+            "TRACK", "SEGUIR", "PAQUETE", "PACKAGE", "DELIVERY", "ENTREGA"
         }
         self.months_map = {
             'JANUARY': 1, 'JAN': 1, 'FEBRUARY': 2, 'FEB': 2, 'MARCH': 3, 'MAR': 3,
@@ -28,6 +48,80 @@ class CouponExtractor:
             'ENERO': 1, 'FEBRERO': 2, 'MARZO': 3, 'ABRIL': 4, 'MAYO': 5, 'JUNIO': 6,
             'JULIO': 7, 'AGOSTO': 8, 'SEPTIEMBRE': 9, 'OCTUBRE': 10, 'NOVIEMBRE': 11, 'DICIEMBRE': 12
         }
+
+    def extraer_cupon_inteligente(self, email_data):
+        """
+        Estrategia de Cascada (Waterfall Strategy):
+        Intenta los métodos más rápidos y precisos primero.
+        """
+        tienda = email_data.get('tienda', 'Desconocida')
+        
+        # 1. INTENTO RAPIDÍSIMO: Metadatos de Gmail (JSON-LD)
+        code, desc = self.extract_from_metadata(email_data.get('body_html', ''))
+        if code:
+            logger.info(f"✨ Cupón encontrado en Metadatos JSON-LD: {code}")
+            return {
+                'codigo': code,
+                'tienda': tienda,
+                'descuento': desc or "Descuento en Metadatos",
+                'confianza': 1.0,
+                'metodo': 'Alta (Metadata)'
+            }
+
+        # 2. INTENTO RÁPIDO: Regex en el texto plano
+        if email_data.get('body_text'):
+            info = self.extract_coupon_info(email_data['body_text'], tienda)
+            if info['codigo'] and info['codigo'] != '[OFERTA DIRECTA]':
+                logger.info(f"🔍 Cupón encontrado via Regex: {info['codigo']}")
+                return {
+                    'codigo': info['codigo'],
+                    'tienda': info['tienda'],
+                    'descuento': info['descuento'],
+                    'confianza': info.get('confianza_contexto', 0.8),
+                    'metodo': 'Media (Regex)',
+                    'fecha_expiracion': info.get('fecha_expiracion'),
+                    'url': info.get('url')
+                }
+
+        # 3. FALLBACK: Si llegamos aquí, se requiere OCR (se maneja en gmail_engine)
+        return None
+
+    def extract_from_metadata(self, html_content):
+        if not html_content:
+            return None, None
+            
+        try:
+            # Buscar bloques <script type="application/ld+json">
+            json_ld_matches = re.findall(r'<script type="application/ld\+json">([\s\S]*?)</script>', html_content)
+            
+            for json_str in json_ld_matches:
+                try:
+                    data = json.loads(json_str)
+                    if isinstance(data, list):
+                        for item in data:
+                            code, desc = self._parse_json_ld_item(item)
+                            if code: return code, desc
+                    else:
+                        code, desc = self._parse_json_ld_item(data)
+                        if code: return code, desc
+                except:
+                    continue
+        except Exception as e:
+            logger.error(f"Error en extract_from_metadata: {e}")
+            
+        return None, None
+
+    def _parse_json_ld_item(self, item):
+        # Gmail y merchants suelen usar 'promoCode' o dentro de una 'Promotion'
+        if 'promoCode' in item:
+            return str(item['promoCode']), item.get('description')
+        
+        # Estructuras comunes de Schema.org
+        if item.get('@type') in ['Offer', 'Promotion']:
+            if 'discountCode' in item:
+                return str(item['discountCode']), item.get('description')
+                
+        return None, None
 
     def extract_coupon_info(self, text, tienda_from_sender=None):
         info = {
@@ -189,7 +283,7 @@ class CouponExtractor:
             if self.learning_system:
                 base_conf = self.learning_system.calculate_confidence(variant, tienda, contexto=text)
 
-            context_score = self._calculate_context_score(text, start_idx, end_idx)
+            context_score = self._calculate_context_score(text, start_idx, end_idx, code=variant)
             final_conf = min(max(base_conf + context_score, 0.1), 0.99)
 
             if self.db.is_positive_coupon(variant):
@@ -238,20 +332,38 @@ class CouponExtractor:
             return True
         return False
 
-    def _calculate_context_score(self, text, start_idx, end_idx):
+    def _calculate_context_score(self, text, start_idx, end_idx, code=""):
         window = 60
         context_start = max(0, start_idx - window)
         context_end = min(len(text), end_idx + window)
         context = text[context_start:context_end].upper()
 
         score = 0.0
+        
+        # Bonus por palabras clave positivas (CUPÓN, CODE, etc.)
         if any(k in context for k in self.positive_context_keywords):
-            score += 0.40
+            score += 0.40  # +40 pts según estrategia
+            
+        # Penalización por palabras clave negativas
         if any(k in context for k in self.negative_context_keywords):
             score -= 0.50
 
+        # Bonus por cercanía a indicadores específicos (CODE:, CUPON:)
         if re.search(r'(CODE|CODIGO|CÓDIGO|CUPON|CUPÓN)\s*[:=\-]', context):
-            score += 0.1
+            score += 0.10
+
+        # Nueva lógica de puntuación según Estrategia de Cascada
+        if code:
+            # Penalización por palabras técnicas (VALID, EXPIRED, etc.)
+            technicals = ["VALID", "EXPIRED", "ACTIVE", "PROMO", "CODE", "CUPON", "CUPÓN", "APPLIED"]
+            if any(t == code.upper() for t in technicals):
+                score -= 1.00 # -100 pts: descartar casi seguro
+                
+            # Bonus por mezcla de letras y números (típico de cupones reales)
+            has_digit = any(c.isdigit() for c in code)
+            has_letter = any(c.isalpha() for c in code)
+            if has_digit and has_letter:
+                score += 0.20 # +20 pts
 
         score += self._word_proximity_bonus(text, start_idx, end_idx)
         return score

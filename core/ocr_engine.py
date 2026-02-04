@@ -1,4 +1,6 @@
 import io
+import os
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import cv2
@@ -6,6 +8,8 @@ import numpy as np
 import pytesseract
 from PIL import Image
 
+# Permitir ejecución directa del módulo
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def _remove_small_components(binary_img):
     try:
@@ -35,25 +39,37 @@ def preprocess_image_for_ocr(image):
         else:
             gray = img_array
 
+        # 1. MEJORA DE CONTRASTE ADAPTATIVO (CLAHE)
+        # Esto ayuda con cupones que tienen gradientes o fondos complejos
+        clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
+
         h, w = gray.shape[:2]
         max_dim = max(h, w)
+        # Re-escalar para mejorar reconocimiento de fuentes pequeñas o muy grandes
         if max_dim > 1600:
             scale = 1600 / max_dim
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
 
-        h, w = gray.shape[:2]
-        max_dim = max(h, w)
         if max_dim < 1200:
             scale = min(2.5, 1200 / max_dim)
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-        gray = cv2.convertScaleAbs(gray, alpha=1.3, beta=0)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        # 2. FILTRO DE CONTRASTE DINÁMICO
+        # Aumentamos el contraste global para separar texto del fondo
+        gray = cv2.convertScaleAbs(gray, alpha=1.5, beta=10)
 
+        # 3. REDUCCIÓN DE RUIDO Y BINARIZACIÓN
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        
+        # Usamos Otsu para binarización automática
         _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Invertir si el fondo es oscuro (el texto debe ser negro sobre fondo blanco para Tesseract)
         if np.mean(thresh) < 127:
             thresh = cv2.bitwise_not(thresh)
 
+        # Limpiar componentes pequeños (pixeles sueltos)
         return _remove_small_components(thresh)
     except Exception:
         return image

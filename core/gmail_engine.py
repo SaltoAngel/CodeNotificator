@@ -1,8 +1,12 @@
 import base64
 import json
 import os
+import sys
 import re
 from datetime import datetime
+
+# Añadir el directorio raíz al PATH para permitir ejecuciones directas del script
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytz
 import validators
@@ -49,7 +53,7 @@ class GmailAuthenticator:
                 GmailAuthenticator.SCOPES
             )
 
-            creds = flow.run_local_server(port=8080, prompt='consent')
+            creds = flow.run_local_server(port=0, prompt='consent')
 
             container = credenciales.get('installed') or credenciales.get('web')
             if not container:
@@ -268,17 +272,23 @@ class GmailOCRProcessor:
             logger.info(f"Procesando: {subject[:50]}... (Remitente: {from_header})")
             coupons_found = []
 
-            def extract_body(part):
-                if part.get('mimeType') == 'text/plain' and part.get('body', {}).get('data'):
-                    data = part['body']['data']
-                    return base64.urlsafe_b64decode(data.encode('UTF-8')).decode('utf-8', errors='ignore')
-
-                if 'parts' in part:
-                    for subpart in part['parts']:
-                        text = extract_body(subpart)
-                        if text:
-                            return text
-                return ""
+            def get_email_content(payload):
+                content = {'text': '', 'html': ''}
+                
+                parts = [payload]
+                while parts:
+                    part = parts.pop(0)
+                    mime_type = part.get('mimeType')
+                    body_data = part.get('body', {}).get('data')
+                    
+                    if mime_type == 'text/plain' and body_data:
+                        content['text'] += base64.urlsafe_b64decode(body_data.encode('UTF-8')).decode('utf-8', errors='ignore')
+                    elif mime_type == 'text/html' and body_data:
+                        content['html'] += base64.urlsafe_b64decode(body_data.encode('UTF-8')).decode('utf-8', errors='ignore')
+                    
+                    if 'parts' in part:
+                        parts.extend(part['parts'])
+                return content
 
             def extract_images(part, images_list):
                 mime_type = part.get('mimeType', '')
@@ -298,51 +308,94 @@ class GmailOCRProcessor:
                     for subpart in part['parts']:
                         extract_images(subpart, images_list)
 
-            body_text = extract_body(message.get('payload', {}))
-            images_data = []
-            extract_images(message.get('payload', {}), images_data)
+            email_content = get_email_content(message.get('payload', {}))
+            body_text = email_content['text']
+            body_html = email_content['html']
+            
+            # Preparar datos para el extractor inteligente (Waterfall)
+            email_data = {
+                'body_text': body_text,
+                'body_html': body_html,
+                'tienda': tienda_from_email,
+                'asunto': subject
+            }
 
-            if images_data:
-                ocr_texts = self.extract_texts_parallel(images_data)
-                if ocr_texts:
-                    body_text = (body_text or "") + "\n" + "\n".join([t for t in ocr_texts if t])
+            # 1 & 2: Metadatos y Regex (Métodos rápidos)
+            result = self.extractor.extraer_cupon_inteligente(email_data)
+            
+            # 3. FALLBACK: OCR (Solo si no se encontró nada antes)
+            if not result:
+                images_data = []
+                extract_images(message.get('payload', {}), images_data)
 
-            if body_text:
-                coupon_info = self.extractor.extract_coupon_info(body_text, tienda_from_email)
-
-                if coupon_info['codigo']:
-                    if tienda_from_email and tienda_from_email != 'Desconocida':
-                        coupon_info['tienda'] = tienda_from_email
-
-                    # Análisis de NLP
-                    nlp_analysis = self.nlp.analyze(subject, body_text[:2000]) # Analizar primeros 2000 chars
-                    logger.info(f"NLP Score para '{subject[:30]}...': {nlp_analysis}")
-
-                    confidence = coupon_info.get('confianza_contexto', 0.7)
+                if images_data:
+                    logger.info(f"📸 Iniciando OCR Fallback para {len(images_data)} imágenes...")
+                    ocr_texts = self.extract_texts_parallel(images_data)
+                    combined_ocr_text = "\n".join([t for t in ocr_texts if t])
                     
-                    # Reforzar confianza con NLP
-                    confidence = (confidence * 0.6) + (nlp_analysis['relevance_score'] * 0.4)
-                    
-                    if nlp_analysis['is_urgent']:
-                        logger.info("🔥 Cupón urgente detectado")
-                        # Podríamos agregar un marcador visual en el futuro
+                    if combined_ocr_text:
+                        # Procesar texto recolectado por OCR
+                        info = self.extractor.extract_coupon_info(combined_ocr_text, tienda_from_email)
+                        if info['codigo'] and info['codigo'] != '[OFERTA DIRECTA]':
+                            result = {
+                                'codigo': info['codigo'],
+                                'tienda': info['tienda'],
+                                'descuento': info['descuento'],
+                                'confianza': info.get('confianza_contexto', 0.5),
+                                'metodo': 'Baja (OCR)',
+                                'fecha_expiracion': info.get('fecha_expiracion'),
+                                'url': info.get('url'),
+                                'is_ocr': True,
+                                'ocr_context': info.get('contexto', '')[:300]
+                            }
 
-                    if self.learning_system:
-                        learned = self.learning_system.calculate_confidence(
-                            coupon_info['codigo'], coupon_info['tienda'], contexto=body_text
-                        )
-                        confidence = min(max((confidence * 0.4) + (learned * 0.6), 0.1), 0.99)
+            if result and result['codigo']:
+                coupon_info = result
+                # Mantener compatibilidad con el resto del flujo
+                if 'codigo' not in coupon_info: coupon_info['codigo'] = ''
 
-                    if self._is_whitelisted_sender(from_header):
-                        confidence = min(confidence + self.trusted_sender_bonus, 0.99)
+                # Análisis de NLP (Se aplica a todos los métodos para consistencia en la confianza)
+                text_for_nlp = body_text if body_text else result.get('codigo', '')
+                nlp_analysis = self.nlp.analyze(subject, text_for_nlp[:2000])
+                
+                confidence = coupon_info.get('confianza', 0.5)
+                # Reforzar confianza con NLP
+                confidence = (confidence * 0.6) + (nlp_analysis['relevance_score'] * 0.4)
+                
+                if nlp_analysis['is_urgent']:
+                    logger.info("🔥 Cupón urgente detectado")
 
-                    coupon_info['confianza'] = confidence
-                    coupon_info['remitente'] = from_header
-                    coupon_info['id_correo'] = message_id
-                    coupon_info['asunto'] = subject
-                    coupon_info['fecha'] = fecha_local
-                    coupons_found.append(coupon_info)
-                    logger.info(f"Cupón encontrado: {coupon_info['codigo']} - Tienda: {coupon_info['tienda']} (confianza: {confidence:.2f})")
+                if self.learning_system:
+                    raw_code = coupon_info['codigo']
+                    corrected_code = self.learning_system.suggest_correction(raw_code, coupon_info['tienda'])
+                    if corrected_code != raw_code:
+                        coupon_info['codigo'] = corrected_code
+                        logger.info(f"✨ Código auto-corregido: {raw_code} -> {corrected_code}")
+
+                    learned = self.learning_system.calculate_confidence(
+                        coupon_info['codigo'], coupon_info['tienda'], contexto=body_text or ""
+                    )
+                    confidence = min(max((confidence * 0.4) + (learned * 0.6), 0.1), 0.99)
+
+                if self._is_whitelisted_sender(from_header):
+                    confidence = min(confidence + self.trusted_sender_bonus, 0.99)
+
+                coupon_info['confianza'] = confidence
+                coupon_info['remitente'] = from_header
+                coupon_info['id_correo'] = message_id
+                coupon_info['asunto'] = subject
+                coupon_info['fecha'] = fecha_local
+                
+                # Priorizar contexto de OCR si el método fue OCR
+                if coupon_info.get('metodo') == 'Baja (OCR)':
+                    coupon_info['contexto'] = coupon_info.get('ocr_context', 'Extraído de imagen')
+                else:
+                    coupon_info['contexto'] = body_text[:300] if body_text else "Extraído de metadata"
+                
+                coupons_found.append(coupon_info)
+                logger.info(f"Cupón encontrado ({coupon_info['metodo']}): {coupon_info['codigo']} - Confianza: {confidence:.2f}")
+
+            return coupons_found
 
             return coupons_found
 
